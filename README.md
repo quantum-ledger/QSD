@@ -14,10 +14,10 @@ so transactions signed today remain unforgeable against cryptographically
 relevant quantum adversaries tomorrow.
 
 desktop client (CELL wallets, tasks, mining, edge). |
-| [**`apps/QSD-edge-agent/`**](apps/QSD-edge-agent/) | Edge Agent / Relay / Edge Control utilities for Mother Hive pools. |
-| [**`apps/QSD-tray-monitor/`**](apps/QSD-tray-monitor/) | Windows tray health monitor for the local home stack. |
-| [**`apps/QSD-nvidia-ngc/`**](apps/QSD-nvidia-ngc/) | Optional NVIDIA NGC GPU attestation sidecar — opt-in, per-operator API policy, **not** a consensus rule. See [`NVIDIA_LOCK_CONSENSUS_SCOPE.md`](QSD/docs/docs/NVIDIA_LOCK_CONSENSUS_SCOPE.md). |
-| [**`apps/QSD-landing/`**](apps/QSD-landing/) | Legacy marketing stub. Prefer `QSD/deploy/landing/` for the live site. |
+| [**`apps/QSDM-edge-agent/`**](apps/QSDM-edge-agent/) | Edge Agent / Relay / Edge Control utilities for Mother Hive pools. |
+| [**`apps/QSDM-tray-monitor/`**](apps/QSDM-tray-monitor/) | Windows tray health monitor for the local home stack. |
+| [**`apps/QSDM-nvidia-ngc/`**](apps/QSDM-nvidia-ngc/) | Optional NVIDIA NGC GPU attestation sidecar — opt-in, per-operator API policy, **not** a consensus rule. See [`NVIDIA_LOCK_CONSENSUS_SCOPE.md`](QSDM/docs/docs/NVIDIA_LOCK_CONSENSUS_SCOPE.md). |
+| [**`apps/QSDM-landing/`**](apps/QSDM-landing/) | Legacy marketing stub. Prefer `QSDM/deploy/landing/` for the live site. |
 
 ## Start here
 
