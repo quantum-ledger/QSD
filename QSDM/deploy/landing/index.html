@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QSD — Quantum-Secure Mesh Ledger</title>
+  <meta
+    name="description"
+    content="QSD is a post-quantum mesh ledger for CELL. Hive handles wallets, signed tasks, NVIDIA mining, and edge pools. Operators get validators, home gateways, audit, and trust APIs."
+  />
+  <meta name="theme-color" content="#061116" />
+  <link rel="icon" href="/assets/QSD-hive-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #061116;
+      --fg: #f4fbfd;
+      --muted: rgba(173, 198, 204, 0.72);
+      --muted-2: rgba(173, 198, 204, 0.45);
+      --border: rgba(142, 220, 224, 0.16);
+      --border-hover: rgba(142, 220, 224, 0.40);
+      --card: #0c242c;
+      --accent: #d6b75f;
+      --cyan: #8edce0;
+      --gold: #d6b75f;
+      --ink: #061116;
+      --max: 80rem;
+      --font: "Outfit", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      font-family: var(--font);
+      font-size: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    button { font: inherit; }
+
+    .shell {
+      width: min(var(--max), calc(100% - 2rem));
+      margin: 0 auto;
+    }
+
+    @media (min-width: 1024px) {
+      .shell { width: min(var(--max), calc(100% - 3rem)); }
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -48px;
+      left: 16px;
+      z-index: 40;
+      padding: 10px 14px;
+      background: var(--gold);
+      color: var(--ink);
+      border-radius: 999px;
+    }
+    .skip-link:focus { top: 16px; }
+
+    /* —— header —— */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: rgba(6, 17, 22, 0.82);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid transparent;
+    }
+
+    header.is-scrolled { border-bottom-color: var(--border); }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 64px;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 600;
+      font-size: 1.05rem;
+      letter-spacing: 0;
+    }
+
+    .brand img {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+    }
+
+    .nav-mid {
+      display: none;
+      align-items: center;
+      gap: 0.15rem;
+    }
+
+    .nav-mid a {
+      padding: 0.45rem 0.75rem;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 150ms var(--ease), background 150ms var(--ease);
+    }
+
+    .nav-mid a:hover {
+      color: var(--fg);
+      background: rgba(142, 220, 224, 0.08);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      min-height: 2.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease), transform 150ms var(--ease);
+      cursor: pointer;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-ghost {
+      color: var(--fg);
+      border-color: rgba(142, 220, 224, 0.28);
+      background: transparent;
+    }
+
+    .btn-ghost:hover { background: rgba(142, 220, 224, 0.08); }
+
+    .btn-solid {
+      color: var(--ink);
+      background: var(--gold, var(--accent));
+      border-color: rgba(214, 183, 95, 0.9);
+    }
+
+    .btn-solid:hover { background: #e0c56f; }
+
+    .menu-toggle {
+      display: inline-flex;
+      width: 2.5rem;
+      height: 2.5rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid rgba(142, 220, 224, 0.28);
+      background: transparent;
+      color: var(--fg);
+      cursor: pointer;
+    }
+
+    .mobile-nav {
+      display: none;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0 0 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .mobile-nav.is-open { display: flex; }
+
+    .mobile-nav a {
+      padding: 0.75rem 0.25rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .mobile-nav a:hover { color: var(--fg); }
+
+    @media (min-width: 1024px) {
+      .nav-mid { display: flex; }
+      .menu-toggle { display: none; }
+      .mobile-nav { display: none !important; }
+    }
+
+    /* —— hero —— */
+    .hero {
+      position: relative;
+      padding: 4rem 0 5rem;
+      overflow: hidden;
+    }
+
+    .hero-inner {
+      position: relative;
+      max-width: 42rem;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .announce {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.75rem;
+      padding: 0.35rem 0.75rem 0.35rem 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(142, 220, 224, 0.05);
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: border-color 200ms var(--ease), color 200ms var(--ease);
+    }
+
+    .announce:hover {
+      border-color: var(--border-hover);
+      color: var(--fg);
+    }
+
+    .announce-tag {
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: var(--gold, var(--accent));
+      color: var(--ink, var(--bg));
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .hero h1 {
+      margin: 0 0 1.25rem;
+      font-size: 4rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
+    .hero h1 .dim { color: var(--muted); }
+
+    .hero-lead {
+      margin: 0 auto 2rem;
+      max-width: 34rem;
+      color: var(--muted);
+      font-size: 1.1rem;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.65rem;
+    }
+
+    /* —— product tiles —— */
+    .products {
+      padding: 0 0 5rem;
+    }
+
+    .product-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 640px) {
+      .product-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .product-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-height: 220px;
+      padding: 1.35rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      overflow: hidden;
+      transition: border-color 400ms var(--ease), transform 400ms var(--ease), box-shadow 400ms var(--ease);
+    }
+
+    @media (min-width: 640px) {
+      .product-card { min-height: 260px; }
+    }
+
+    .product-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    .product-card > * { position: relative; z-index: 1; }
+
+    .product-kicker {
+      margin-bottom: 0.5rem;
+      color: var(--muted-2);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .product-card h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .product-card p {
+      margin: 0 0 1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 28ch;
+    }
+
+    .product-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--fg);
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+
+    .product-link span {
+      transition: transform 200ms var(--ease);
+    }
+
+    .product-card:hover .product-link span {
+      transform: translateX(3px);
+    }
+
+    /* —— section shared —— */
+    section.band {
+      padding: 5rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-head {
+      max-width: 40rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .section-head.center {
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+    }
+
+    .section-head h2 {
+      margin: 0 0 0.85rem;
+      font-size: 3.25rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      line-height: 1.08;
+    }
+
+    .section-head h2 .dim { color: var(--muted); }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    /* —— developer / API —— */
+    .api-layout {
+      display: grid;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    @media (min-width: 960px) {
+      .api-layout {
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 3rem;
+        align-items: center;
+      }
+    }
+
+    .stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.75rem;
+      margin-top: 2rem;
+    }
+
+    .stat-row div p:first-child {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      color: rgba(245, 245, 245, 0.7);
+    }
+
+    .stat-row div p:last-child {
+      margin: 0.2rem 0 0;
+      font-size: 0.8rem;
+      color: var(--muted-2);
+    }
+
+    .code-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #080808;
+      overflow: hidden;
+    }
+
+    .code-tabs {
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.65rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-tabs button {
+      padding: 0.35rem 0.7rem;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .code-tabs button[aria-selected="true"] {
+      background: rgba(142, 220, 224, 0.10);
+      color: var(--fg);
+    }
+
+    .code-panel pre {
+      margin: 0;
+      padding: 1.1rem 1.2rem 1.35rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      line-height: 1.65;
+      color: rgba(245, 245, 245, 0.78);
+    }
+
+    .code-panel .kw { color: #f97583; }
+    .code-panel .fn { color: #79b8ff; }
+    .code-panel .str { color: #9ecbff; }
+    .code-panel .cm { color: rgba(245, 245, 245, 0.3); }
+
+    /* —— capabilities list —— */
+    .cap-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 720px) {
+      .cap-grid { grid-template-columns: 1fr 1fr 1fr; }
+    }
+
+    .cap-item {
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      transition: border-color 250ms var(--ease), background 250ms var(--ease);
+    }
+
+    .cap-item:hover {
+      border-color: var(--border-hover);
+      background: rgba(142, 220, 224, 0.04);
+    }
+
+    .cap-item h3 {
+      margin: 0 0 0.4rem;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .cap-item p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* —— news / docs —— */
+    .news-list {
+      display: grid;
+      gap: 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .news-list a {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: baseline;
+      padding: 1.15rem 0;
+      border-bottom: 1px solid var(--border);
+      transition: color 150ms var(--ease);
+    }
+
+    .news-list a:hover { color: var(--accent); }
+
+    .news-list strong {
+      font-weight: 550;
+      letter-spacing: 0;
+    }
+
+    .news-list span {
+      color: var(--muted-2);
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* —— get started —— */
+    .start-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 800px) {
+      .start-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .start-card {
+      padding: 1.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+    }
+
+    .start-card h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .start-card > p {
+      margin: 0 0 1.25rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .start-card ul {
+      margin: 0 0 1.5rem;
+      padding: 0;
+      list-style: none;
+    }
+
+    .start-card li {
+      position: relative;
+      padding: 0.4rem 0 0.4rem 1.1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .start-card li:first-child { border-top: 0; }
+
+    .start-card li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.85rem;
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    /* —— footer —— */
+    footer {
+      padding: 3rem 0 2.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted-2);
+      font-size: 0.85rem;
+    }
+
+    .footer-grid {
+      display: grid;
+      gap: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    @media (min-width: 720px) {
+      .footer-grid {
+        grid-template-columns: 1.2fr repeat(3, 1fr);
+      }
+    }
+
+    .footer-brand {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .footer-brand .brand { color: var(--fg); }
+
+    .footer-col h4 {
+      margin: 0 0 0.75rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .footer-col a {
+      display: block;
+      padding: 0.3rem 0;
+      color: var(--muted-2);
+      transition: color 150ms var(--ease);
+    }
+
+    .footer-col a:hover { color: var(--fg); }
+
+    .footer-bottom {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .hero h1 { font-size: 3rem; }
+      .section-head h2 { font-size: 2.5rem; }
+    }
+
+    @media (max-width: 479px) {
+      .nav-right > .btn { display: none; }
+      .nav { gap: 0.5rem; }
+      .hero { padding: 3rem 0 4rem; }
+      .hero h1 { font-size: 2rem; line-height: 1.12; }
+      .hero-lead { font-size: 1rem; }
+      .section-head h2 { font-size: 2rem; }
+      .announce { max-width: 100%; }
+    }
+  </style>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "QSD",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Windows, Linux",
+      "description": "Post-quantum mesh ledger with CELL, QSD Hive desktop client, NVIDIA-attested mining, signed tasks, and pooled edge compute.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header id="site-header">
+    <div class="shell">
+      <nav class="nav" aria-label="Primary">
+        <a class="brand" href="/">
+          <img src="/assets/QSD-hive-icon.png" alt="" />
+          <span>QSD</span>
+        </a>
+        <div class="nav-mid">
+          <a href="#products">Products</a>
+          <a href="#api">Developers</a>
+          <a href="#capabilities">Capabilities</a>
+          <a href="/docs/">Docs</a>
+          <a href="/explorer.html">Explorer</a>
+          <a href="/audit.html">Audit</a>
+        </div>
+        <div class="nav-right">
+          <a class="btn btn-ghost" href="/wallet.html">Wallet</a>
+          <a class="btn btn-solid" href="/download.html">Download Hive</a>
+          <button class="menu-toggle" type="button" id="menuToggle" aria-label="Open menu" aria-expanded="false">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 7H4V5H20V7ZM20 13H4V11H20V13ZM20 19H4V17H20V19Z"/></svg>
+          </button>
+        </div>
+      </nav>
+      <div class="mobile-nav" id="mobileNav">
+        <a href="#products">Products</a>
+        <a href="#api">Developers</a>
+        <a href="#capabilities">Capabilities</a>
+        <a href="/docs/">Docs</a>
+        <a href="/explorer.html">Explorer</a>
+        <a href="/audit.html">Audit</a>
+        <a href="/wallet.html">Wallet</a>
+        <a href="/download.html">Download Hive</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="shell">
+        <div class="hero-inner">
+          <a class="announce" href="/docs/#/feature-summary">
+            <span class="announce-tag">New</span>
+            Ledger v0.4.3 · Hive 1.4.0
+          </a>
+          <h1>
+            Quantum-secure ledger<br />
+            <span class="dim">for everything you build.</span>
+          </h1>
+          <p class="hero-lead">
+            CELL wallets, signed tasks, NVIDIA mining, and Mother Hive edge pools —
+            with public audit, explorer, and trust surfaces.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-solid" href="/download.html">Download Hive</a>
+            <a class="btn btn-ghost" href="/docs/">Explore docs →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="products" id="products" aria-label="Products">
+      <div class="shell">
+        <div class="product-grid">
+          <a class="product-card" href="/docs/#/QSD-hive">
+            <span class="product-kicker">Desktop</span>
+            <h3>QSD Hive</h3>
+            <p>Windows and Linux client for CELL wallets, Task Studio, NVIDIA mining, and Mother Hive.</p>
+            <span class="product-link">Open guide <span>→</span></span>
+          </a>
+          <a class="product-card" href="/wallet.html">
+            <span class="product-kicker">Self-custody</span>
+            <h3>Web wallet</h3>
+            <p>Browser ML-DSA-87 keystore with signed submit and replay protection.</p>
+            <span class="product-link">Open wallet <span>→</span></span>
+          </a>
+          <a class="product-card" href="/docs/#/miner-quickstart">
+            <span class="product-kicker">Protocol mining</span>
+            <h3>NVIDIA Miner</h3>
+            <p>Mining Protocol v2 with attestation, enrollment bond, and CUDA proofs.</p>
+            <span class="product-link">Miner requirements <span>→</span></span>
+          </a>
+          <a class="product-card" href="/docs/#/edge-pool">
+            <span class="product-kicker">Edge compute</span>
+            <h3>Mother Hive</h3>
+            <p>Agent → Relay → Hive → Core pools for bounded CPU, NVIDIA GPU, and RAM jobs.</p>
+            <span class="product-link">Edge pool guide <span>→</span></span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="api" aria-labelledby="api-title">
+      <div class="shell">
+        <div class="api-layout">
+          <div>
+            <div class="section-head">
+              <h2 id="api-title">One API.<br /><span class="dim">Every surface.</span></h2>
+              <p>
+                Status, wallets, mining, receipts, governance, and trust —
+                all through the public HTTP v1 surface.
+              </p>
+            </div>
+            <div class="hero-actions" style="justify-content: flex-start;">
+              <a class="btn btn-solid" href="/api.html">API overview</a>
+              <a class="btn btn-ghost" href="/docs/#/api-reference">Read docs</a>
+            </div>
+            <div class="stat-row">
+              <div>
+                <p>ML-DSA-87</p>
+                <p>Post-quantum signatures</p>
+              </div>
+              <div>
+                <p>v0.4.3</p>
+                <p>Current ledger release</p>
+              </div>
+              <div>
+                <p>PoE + BFT</p>
+                <p>Mesh consensus</p>
+              </div>
+            </div>
+          </div>
+          <div class="code-panel" data-code-panel>
+            <div class="code-tabs" role="tablist" aria-label="Code language">
+              <button type="button" role="tab" aria-selected="true" data-lang="curl">cURL</button>
+              <button type="button" role="tab" aria-selected="false" data-lang="js">JavaScript</button>
+              <button type="button" role="tab" aria-selected="false" data-lang="go">Go</button>
+            </div>
+            <pre id="code-curl" aria-hidden="false"><span class="cm"># Public chain status</span>
+<span class="kw">curl</span> -sS https://api.QSD.tech/api/v1/status | jq .
+
+<span class="cm"># Recent public receipts</span>
+<span class="kw">curl</span> -sS https://api.QSD.tech/api/v1/receipts | jq .</pre>
+            <pre id="code-js" hidden aria-hidden="true"><span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(
+  <span class="str">"https://api.QSD.tech/api/v1/status"</span>
+);
+<span class="kw">const</span> status = <span class="kw">await</span> res.<span class="fn">json</span>();
+<span class="fn">console</span>.log(status.version, status.height);</pre>
+            <pre id="code-go" hidden aria-hidden="true"><span class="kw">import</span> (
+  <span class="str">"fmt"</span>
+  QSD <span class="str">"github.com/quantum-ledger/QSD/sdk/go"</span>
+)
+
+client := QSD.<span class="fn">New</span>(<span class="str">"https://api.QSD.tech"</span>)
+st, _ := client.<span class="fn">Status</span>(ctx)
+<span class="fn">fmt</span>.Println(st.Version)</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" id="capabilities" aria-labelledby="cap-title">
+      <div class="shell">
+        <div class="section-head center">
+          <h2 id="cap-title">Built for operators<br /><span class="dim">and builders.</span></h2>
+          <p>Shipped surfaces across Core, Hive, home stacks, and public transparency.</p>
+        </div>
+        <div class="cap-grid">
+          <article class="cap-item">
+            <h3>Home gateway</h3>
+            <p>Publish mining and status without exposing wallet or admin APIs.</p>
+          </article>
+          <article class="cap-item">
+            <h3>Task catalog</h3>
+            <p>Fund, stake, start, submit, and claim through signed consensus actions.</p>
+          </article>
+          <article class="cap-item">
+            <h3>Governance &amp; bridge</h3>
+            <p>Token-weighted parameters plus atomic lock, redeem, and refund flows.</p>
+          </article>
+          <article class="cap-item">
+            <h3>Tray monitor</h3>
+            <p>Windows tray health for local validator, miner, gateway, and watchdog.</p>
+          </article>
+          <article class="cap-item">
+            <h3>Trust APIs</h3>
+            <p>Attestation summary and recent feeds for transparency and operator review.</p>
+          </article>
+          <article class="cap-item">
+            <h3>Public audit</h3>
+            <p>Checklist, badge, explorer, and chain status anyone can verify.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="docs-title">
+      <div class="shell">
+        <div class="section-head" style="display:flex;justify-content:space-between;align-items:end;gap:1rem;flex-wrap:wrap;max-width:none;">
+          <h2 id="docs-title" style="margin:0;">Documentation</h2>
+          <a class="btn btn-ghost" href="/docs/">All docs</a>
+        </div>
+        <div class="news-list">
+          <a href="/docs/#/operator-guide"><strong>Operator guide</strong><span>Start here</span></a>
+          <a href="/docs/#/QSD-hive"><strong>QSD Hive guide</strong><span>Desktop</span></a>
+          <a href="/docs/#/feature-summary"><strong>Feature summary</strong><span>Capabilities</span></a>
+          <a href="/docs/#/cell-tokenomics"><strong>CELL tokenomics</strong><span>Supply</span></a>
+          <a href="/docs/#/miner-quickstart"><strong>NVIDIA miner quickstart</strong><span>Mining</span></a>
+          <a href="/docs/#/home-gateway"><strong>Home gateway</strong><span>Operators</span></a>
+          <a href="/docs/#/security-audit"><strong>Security audit</strong><span>Trust</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="start-title">
+      <div class="shell">
+        <div class="section-head center">
+          <h2 id="start-title">Choose how to get started</h2>
+        </div>
+        <div class="start-grid">
+          <article class="start-card">
+            <h3>Run it yourself</h3>
+            <p>Launch Hive or a local operator stack with:</p>
+            <ul>
+              <li>QSD Hive for wallets, tasks, mining, and Mother Hive</li>
+              <li>Self-custody web wallet</li>
+              <li>Validator and miner quickstarts</li>
+              <li>Home gateway and tray monitor</li>
+            </ul>
+            <a class="btn btn-solid" href="/download.html">Download Hive</a>
+          </article>
+          <article class="start-card">
+            <h3>Build on the API</h3>
+            <p>Integrate CELL and signed actions with:</p>
+            <ul>
+              <li>Public HTTP v1 endpoints</li>
+              <li>Go and JavaScript SDKs</li>
+              <li>Explorer, receipts, mining, and trust feeds</li>
+              <li>Operator runbooks and OpenAPI</li>
+            </ul>
+            <a class="btn btn-ghost" href="/docs/#/api-reference">Read API reference</a>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="/">
+            <img src="/assets/QSD-hive-icon.png" alt="" />
+            <span>QSD</span>
+          </a>
+          <p style="margin:0;max-width:28ch;">Quantum-secure dynamic mesh ledger. Native coin CELL.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="/download.html">Download</a>
+          <a href="/wallet.html">Wallet</a>
+          <a href="/explorer.html">Explorer</a>
+          <a href="/chain.html">Chain status</a>
+        </div>
+        <div class="footer-col">
+          <h4>Developers</h4>
+          <a href="/docs/">Docs</a>
+          <a href="/api.html">API</a>
+          <a href="/docs/#/api-reference">API reference</a>
+          <a href="/validators.html">Validators</a>
+        </div>
+        <div class="footer-col">
+          <h4>Trust</h4>
+          <a href="/audit.html">Audit</a>
+          <a href="/trust.html">Trust</a>
+          <a href="/.well-known/security.txt">Security</a>
+          <a href="https://github.com/quantum-ledger/QSD/blob/main/PRIVACY.md">Privacy policy</a>
+          <a href="https://github.com/quantum-ledger/QSD/blob/main/CODE_SIGNING_POLICY.md">Code signing policy</a>
+          <a href="https://github.com/quantum-ledger/QSD">GitHub</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2024–2026 QSD · <a href="https://github.com/quantum-ledger/QSD/blob/main/LICENSE">MIT License</a></span>
+        <span>Hive · CELL · public transparency</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const header = document.getElementById("site-header");
+      const onScroll = () => header && header.classList.toggle("is-scrolled", window.scrollY > 8);
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+
+      const toggle = document.getElementById("menuToggle");
+      const mobile = document.getElementById("mobileNav");
+      if (toggle && mobile) {
+        toggle.addEventListener("click", () => {
+          const open = mobile.classList.toggle("is-open");
+          toggle.setAttribute("aria-expanded", String(open));
+        });
+        mobile.querySelectorAll("a").forEach((a) => {
+          a.addEventListener("click", () => {
+            mobile.classList.remove("is-open");
+            toggle.setAttribute("aria-expanded", "false");
+          });
+        });
+      }
+
+      const panel = document.querySelector("[data-code-panel]");
+      if (!panel) return;
+      const tabs = Array.from(panel.querySelectorAll("[data-lang]"));
+      const blocks = {
+        curl: document.getElementById("code-curl"),
+        js: document.getElementById("code-js"),
+        go: document.getElementById("code-go"),
+      };
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const lang = tab.dataset.lang;
+          tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+          Object.entries(blocks).forEach(([key, el]) => {
+            if (!el) return;
+            const on = key === lang;
+            el.hidden = !on;
+            el.setAttribute("aria-hidden", String(!on));
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

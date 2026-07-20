@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>QSD Hive Wallet</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <div class="mark" aria-hidden="true">Q</div>
+      <div>
+        <h1>QSD Wallet</h1>
+        <p id="hive-status">Checking wallet...</p>
+      </div>
+    </header>
+    <main>
+      <section>
+        <span class="label">Signed in wallet</span>
+        <strong id="wallet-address">Not connected</strong>
+      </section>
+      <section>
+        <span class="label">Current site</span>
+        <div class="site-row">
+          <strong id="site-name">Checking...</strong>
+          <span class="site-state" id="site-state">Not connected</span>
+        </div>
+      </section>
+      <p class="custody">
+        Your wallet stays secured by Hive. Sites receive only the public address
+        and actions you approve.
+      </p>
+      <p class="notice" id="notice" role="status"></p>
+      <button id="connect-site" type="button">Connect Current Site</button>
+      <button id="open-wallet" class="secondary" type="button">
+        Open QSD Hive
+      </button>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

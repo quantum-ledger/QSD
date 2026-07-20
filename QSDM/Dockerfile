@@ -1,0 +1,107 @@
+# Legacy Dockerfile — Major Update split-image notice
+# =====================================================
+# Starting with the Major Update (see QSD/docs/docs/REBRAND_NOTES.md), the
+# single-image build model is replaced by two explicit role-scoped images:
+#
+#   - Dockerfile.validator  : CPU-only Alpine image, validator_only build
+#                             profile (refuses to run as a miner).
+#   - Dockerfile.miner      : CUDA-enabled image, full build profile
+#                             (includes pkg/mining/cuda).
+#
+# This file is preserved to remain build-compatible with existing CI and
+# operator scripts that invoke `docker build -t QSD:latest .`. It delegates
+# to Dockerfile.validator because the validator profile is the smaller and
+# safer default for operators who have not explicitly opted into mining.
+#
+# To build the miner image, run:
+#
+#   docker build -f Dockerfile.miner -t QSD/miner:latest .
+#
+# To build the validator image explicitly:
+#
+#   docker build -f Dockerfile.validator -t QSD/validator:latest .
+#
+# The inline build below intentionally mirrors Dockerfile.validator; keep the
+# two in sync when modifying.
+
+FROM golang:1.25-alpine AS builder
+
+RUN apk update && apk add --no-cache \
+    ca-certificates \
+    gcc \
+    musl-dev \
+    cmake \
+    make \
+    git \
+    sqlite-dev \
+    openssl-dev
+
+WORKDIR /tmp
+RUN git clone --depth 1 https://github.com/open-quantum-safe/liboqs.git && \
+    cd liboqs && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON .. && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/liboqs
+
+WORKDIR /app
+COPY source ./source
+RUN cd source && go mod download
+
+# Default build here is validator_only so accidentally running the legacy
+# image in a production environment does not silently attempt to mine.
+RUN cd source && CGO_ENABLED=1 \
+    CGO_CFLAGS="-I/usr/local/include" \
+    CGO_LDFLAGS="-L/usr/local/lib -loqs -lssl -lcrypto" \
+    go build -tags validator_only -o ../QSD ./cmd/QSD
+
+# Pin to Alpine 3.23 (minor-version pin, patch auto-pickup) instead of
+# alpine:latest. Surfaces by Trivy DS-0001 in the periodic
+# .github/workflows/security-scan-containers.yml run; matches the
+# minor-version pinning convention already used in Dockerfile.miner
+# (nvidia/cuda:12.5.0-runtime-ubuntu22.04). The patch level is
+# intentionally left floating so apk-side CVE fixes get pulled on
+# every rebuild without a Dockerfile bump.
+FROM alpine:3.23
+
+RUN apk update && apk add --no-cache \
+    ca-certificates \
+    sqlite \
+    libstdc++ \
+    openssl \
+    wget
+
+COPY --from=builder /usr/local/lib/liboqs.so* /usr/local/lib/
+COPY --from=builder /app/QSD /usr/local/bin/QSD
+
+# (No legacy-name symlink: the rebrand commit's search-and-replace
+# collapsed the original `ln -s /usr/local/bin/QSD
+# /usr/local/bin/QSDplus` into a self-symlink that fails the docker
+# build with "File exists". Since the canonical binary is already at
+# /usr/local/bin/QSD via the COPY above, no symlink is needed for
+# the documented `QSD` entrypoint.)
+
+WORKDIR /app
+
+EXPOSE 4001 8080 8081 9000
+
+ENV CGO_ENABLED=1
+ENV LD_LIBRARY_PATH=/usr/local/lib
+ENV QSD_NODE_ROLE=validator
+ENV QSD_MINING_ENABLED=false
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+  CMD wget -q -O- http://127.0.0.1:8080/api/v1/health/live > /dev/null || exit 1
+
+# Minimal non-root user for the runtime stage (mirrors Dockerfile.validator
+# lines 91-95 — keep in sync per the comment at the top of this file).
+# K8s deploy paths get the same invariant via securityContext.runAsUser=65532
+# in QSD/deploy/kubernetes/deployment.yaml (commit d5b176b); this directive
+# closes the docker-run-without-securityContext path so the legacy single-
+# image build is not a regression vs the split validator + miner topology.
+RUN addgroup -S QSD && adduser -S -G QSD QSD && \
+    mkdir -p /app/data && chown -R QSD:QSD /app
+USER QSD
+
+CMD ["QSD"]

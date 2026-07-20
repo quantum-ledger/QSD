@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: QSD
+  labels:
+    name: QSD
+    app: QSD
+

@@ -1,0 +1,136 @@
+# QSD Code Signing Policy
+
+This policy covers public QSD Hive releases for Windows. It complements the
+[build and release guidelines](QSD/docs/docs/BUILD_AND_RELEASE_GUIDELINES.md)
+and the [security policy](SECURITY.md).
+
+## Signing status
+
+QSD applied for the SignPath Foundation open-source code signing program, but
+the application was declined for now because the project does not yet have
+enough external public trust signals for Foundation sponsorship. No QSD
+artifact may be described as SignPath-signed unless a future paid or Foundation
+subscription signs that exact artifact and the final verification gates pass.
+
+Current public Windows Hive releases are unsigned by Microsoft Authenticode.
+They may be published through the stable QSD channel only when the release
+owner explicitly approves the unsigned posture, all release gates pass, and
+SHA-256 checksums are published at immutable URLs. Windows SmartScreen may warn
+because unsigned installers have no Microsoft publisher reputation.
+
+QSD Hive 1.3.96 adds a project-native ML-DSA-87 signature over its release
+manifest and verifies installer hashes before installation. That proves
+continuity with a QSD-controlled release key, but it
+does not make Windows show a verified publisher and does not replace
+Authenticode, timestamping, or SmartScreen reputation.
+
+QSD will not substitute a self-signed certificate or install a private root
+certificate on consumer computers to imitate public Windows trust.
+
+## Project and roles
+
+- Repository: <https://github.com/quantum-ledger/QSD>
+- License: [MIT](LICENSE)
+- Committer and reviewer: [@quantum-ledger](https://github.com/quantum-ledger)
+- Release approver: [@quantum-ledger](https://github.com/quantum-ledger)
+
+QSD currently has one repository custodian. Automated build credentials may
+submit a signing request, but they cannot approve it. The release approver must
+review the source revision, CI evidence, artifact manifest, and security gates
+before manually approving a production signing request. GitHub and signing
+accounts used for these roles must have multi-factor authentication enabled.
+
+## What is signed
+
+The QSD Hive Windows signing scope is limited to artifacts built from this
+repository:
+
+- the QSD Hive desktop executable;
+- QSD CLI, miner, CUDA solver, Edge Agent, Edge Control, and GPU helper
+  executables bundled with Hive; and
+- the final QSD Hive installer.
+
+Third-party executables and libraries are not re-signed as QSD software. Their
+upstream signatures are preserved and verified where the package format and
+tooling support that check.
+
+## Trusted build and approval flow
+
+1. A release starts from an immutable Git tag that points to a reviewed commit
+   on the protected default branch.
+2. GitHub-hosted runners build the unsigned Windows payload from that exact
+   commit and dependency lock state. Self-hosted runner output is not eligible
+   for SignPath Foundation production signing.
+3. The unsigned payload is uploaded as a GitHub Actions artifact before the
+   SignPath connector receives the request. Local workstation uploads are for
+   diagnosis only and are not production release inputs.
+4. When Authenticode signing is available, SignPath or the paid signing provider
+   verifies build origin and signs only paths permitted by the QSD artifact
+   configuration. Each production request requires manual approval.
+5. The signed payload is packaged into the installer, and the installer is
+   submitted as a separate signing request from the same workflow and commit.
+6. `QSD/deploy/scripts/verify_hive_nsis_payload.ps1` requires every embedded
+   QSD executable to match the signed source payload byte-for-byte, and
+   `verify_hive_windows_signature.ps1` rejects the release unless every
+   required executable and the installer has a valid, timestamped
+   Authenticode signature from the configured publisher when Authenticode
+   signing is part of that release.
+7. Checksums, signature evidence, source revision, release notes, and rollback
+   instructions are retained with the immutable release.
+
+Unsigned artifacts are acceptable only while QSD is in the indie/no-certificate
+release posture and only with explicit disclosure on the download page. They
+must never be described as Authenticode-signed, SignPath-signed, or Windows
+verified-publisher releases. They must never replace bytes at an existing
+immutable URL. The stable updater may point at an unsigned release only after
+the owner approves the release notes, checksum evidence, smoke-test results,
+and SmartScreen disclosure.
+
+The first Authenticode-signed release is a publisher transition from existing
+unsigned or locally identified builds. It requires a manual installer upgrade
+after signature and checksum verification. Automatic updates resume only
+between releases signed by the same trusted publisher identity.
+
+## Release requirements
+
+A signing request is denied when any of these conditions is true:
+
+- the source revision is not reviewed, tagged, or clean;
+- a required CI, test, secret scan, security scan, or release-evidence gate
+  failed or did not run;
+- the package contains an unexpected executable or an unreviewed binary;
+- bundled QSD component versions do not match the Hive release;
+- a wallet, passphrase, token, deployment credential, local database, or other
+  private runtime state is present in the artifact;
+- required Windows metadata is missing; Authenticode verification is missing
+  for a release that claims Authenticode signing; or
+- the release owner has not explicitly approved promotion.
+
+Mining remains opt-in and visible to the user. The signed application must
+retain clean stop and uninstall controls and must not silently enable mining or
+resource sharing.
+
+## Verification
+
+Users can inspect a downloaded installer with Windows PowerShell:
+
+```powershell
+Get-AuthenticodeSignature .\QSD-hive-<version>-win-x64.exe |
+  Format-List Status,StatusMessage,SignerCertificate,TimeStamperCertificate
+Get-FileHash .\QSD-hive-<version>-win-x64.exe -Algorithm SHA256
+```
+
+For Authenticode-signed releases, the signature status must be `Valid`, the
+publisher must match the publisher declared for that release, and the SHA-256
+value must match QSD's immutable release manifest. For current unsigned indie
+releases, `Get-AuthenticodeSignature` is expected to report `NotSigned`; users
+must verify SHA-256 and understand that a checksum detects changed bytes but
+does not establish Microsoft-recognized publisher identity.
+
+## Privacy and incident response
+
+QSD Hive's data-handling boundaries are documented in the
+[privacy policy](PRIVACY.md). Vulnerabilities or suspected signing-key misuse
+must be reported through the private process in [SECURITY.md](SECURITY.md).
+Signing is suspended during an unresolved supply-chain incident. A compromised
+credential or certificate is revoked before another release is approved.

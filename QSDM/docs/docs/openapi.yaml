@@ -1,0 +1,2053 @@
+openapi: 3.0.3
+info:
+  title: QSD HTTP API
+  description: |
+    Quantum-Secure Dynamic Mesh Ledger (QSD, formerly QSD) HTTP API with
+    military-grade security. Native coin: Cell (CELL), 8 decimals, smallest
+    unit `dust`.
+    
+    All authenticated endpoints require:
+    - JWT Bearer token in Authorization header
+    - Request signing for POST/PUT/DELETE requests (X-Timestamp, X-Nonce, X-Signature headers)
+    
+    Security Features:
+    - TLS 1.3 encryption
+    - Quantum-safe JWT tokens (CRYSTALS-Dilithium)
+    - Request signing with quantum-safe signatures
+    - Rate limiting: default **100 requests per client per minute** (`[api] rate_limit_max_requests` / `rate_limit_window` or `QSD_API_RATE_LIMIT_MAX` / `QSD_API_RATE_LIMIT_WINDOW`; the legacy `QSD_*` env vars continue to be accepted during the deprecation window, see `REBRAND_NOTES.md`). Some routes are stricter (e.g. GET /monitoring/ngc-challenge at 15/min). **GET /health** and **/health/*** are exempt so probes are not throttled.
+    - Replay attack protection
+    - Role-based access control
+    
+    **Submesh policy (optional):** When the node loads `[network] submesh_config` / `QSD_SUBMESH_CONFIG` (legacy alias: `QSD_SUBMESH_CONFIG`), some ledger routes may return **422 Unprocessable Entity** if fee+geotag do not match a profile or the serialized payload exceeds `max_tx_size` (wallet send), or mint/token-create exceeds the strictest profile cap. See main README “Submesh profiles”.
+
+    **Public read (transparency) endpoints — v1.1.0 catch-up.** A growing set of read-only routes is intentionally unauthenticated so SDK clients, third-party aggregators, and the public landing page widget at `https://QSD.tech/trust` can scrape verifiable signals without an operator-granted session: `/status`, `/versions`, `/wallet/balance`, `/wallet/nonce`, `/tokens/list`, `/audit/summary`, `/audit/items`, `/audit/badge.svg`, `/trust/attestations/summary`, `/trust/attestations/recent`, `/attest/recent-rejections`, `/receipts`, `/receipts/{tx_id}`. All are rate-limited per-IP by the same limiter that protects authenticated routes; the audit checklist text is already public from the open-source repo, and the trust posture is "always show X of Y, never just X" (see `NVIDIA_LOCK_CONSENSUS_SCOPE.md`).
+  version: 1.1.0
+  contact:
+    name: QSD Development Team
+    url: https://github.com/blackbeardONE/QSD
+
+servers:
+  - url: https://localhost:8443/api/v1
+    description: Production server (HTTPS)
+  - url: http://localhost:8080/api/v1
+    description: Development server (HTTP - insecure)
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Status
+    description: Public node status (node_role, coin metadata, branding) — unauthenticated
+  - name: Authentication
+    description: User authentication and registration
+  - name: Wallet
+    description: Wallet operations
+  - name: Transactions
+    description: Transaction management
+  - name: Validator
+    description: Transaction validation
+  - name: Monitoring
+    description: NGC proof ingest and operator endpoints (shared ingest secret header; not JWT)
+  - name: Trust
+    description: Transparency endpoints for NGC attestations (Major Update §8.5; opt-in, anti-claim widget — always renders "X of Y", never just "X")
+  - name: Audit
+    description: Transparency endpoints for the operator audit checklist (pkg/audit). Public-API mirror of the bearer-gated dashboard endpoints under /api/audit/*
+  - name: Attest
+    description: Transparency endpoints for the v2 mining attestation rejection ring (pkg/mining/attest)
+  - name: Governance
+    description: v2 mining runtime parameter tuning (read endpoints; writes flow through /transactions with a QSD/gov/v1 envelope)
+  - name: Receipts
+    description: Public chain transparency — per-tx outcome probes and the recent-transactions list feeding the chain dashboard
+  - name: Versions
+    description: API version catalogue + lifecycle metadata (MED-4 deprecation flow)
+  - name: Network
+    description: Live network topology projection consumed by the dashboard WebGL renderer
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns API health status (public endpoint)
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: integer
+                    format: int64
+                    example: 1234567890
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  nvidia_lock:
+                    type: object
+                    description: Present when configured; includes proof_ok, ingest_nonce flags, http_blocks_total, ngc_challenge_* counters, ngc_ingest_nonce_pool_size (see deploy/README.md).
+
+  /health/live:
+    get:
+      tags:
+        - Health
+      summary: Liveness probe
+      description: Minimal process liveness (always **200** when the API accepts HTTP). Not rate limited.
+      operationId: healthLive
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: alive
+                  timestamp:
+                    type: integer
+                    format: int64
+                  product:
+                    type: string
+
+  /health/ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness probe
+      description: |
+        **200** when **storage** `Ready()` succeeds; **503** when storage is unreachable.
+        **wallet_service** is `ok` or `unavailable` (informational; does not flip status alone).
+        Not rate limited.
+      operationId: healthReady
+      responses:
+        '200':
+          description: Ready (storage OK)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+                  timestamp:
+                    type: integer
+                    format: int64
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: string
+        '503':
+          description: Storage check failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_ready
+                  checks:
+                    type: object
+
+  /monitoring/ngc-challenge:
+    get:
+      tags:
+        - Monitoring
+      summary: Issue ingest nonce (NVIDIA-lock nonce mode)
+      description: |
+        Public for JWT purposes; requires `X-QSD-NGC-Secret` (or legacy `X-QSD-NGC-Secret`) matching the node's ingest secret.
+        Returns 404 when `nvidia_lock_require_ingest_nonce` is disabled. Rate limited to **15 requests/minute** per client (IP or X-API-Key).
+        On 429, `Retry-After` is set (seconds).
+      operationId: ngcIngestChallenge
+      parameters:
+        - $ref: '#/components/parameters/NgcIngestSecretPrimary'
+        - $ref: '#/components/parameters/NgcIngestSecretLegacy'
+      responses:
+        '200':
+          description: Nonce issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  QSD_ingest_nonce:
+                    type: string
+                  expires_at_unix:
+                    type: integer
+                    format: int64
+                  ttl_seconds:
+                    type: integer
+        '404':
+          description: Ingest nonce challenge disabled
+        '401':
+          description: Missing or invalid ingest secret
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                description: Seconds until the client may retry
+
+  /monitoring/ngc-proof:
+    post:
+      tags:
+        - Monitoring
+      summary: Ingest NGC GPU proof bundle
+      description: |
+        Accepts JSON proof bundles from the NGC sidecar. Requires ingest secret headers.
+        Rate limited (default 30/min per path key). See deploy README for NVIDIA-lock and HMAC/nonce behavior.
+      operationId: ngcProofIngest
+      parameters:
+        - $ref: '#/components/parameters/NgcIngestSecretPrimary'
+        - $ref: '#/components/parameters/NgcIngestSecretLegacy'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Proof bundle (cuda_proof_hash, gpu_fingerprint, optional QSD_* fields)
+      responses:
+        '200':
+          description: Ingest accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        '400':
+          description: Invalid body or proof validation failed
+        '404':
+          description: NGC ingest not configured on node
+        '413':
+          description: Body too large
+        '429':
+          description: Rate limit exceeded
+
+  /monitoring/ngc-proofs:
+    get:
+      tags:
+        - Monitoring
+      summary: List ingested proof summaries
+      description: Operator view of recent ingested bundles (same secret as ingest).
+      operationId: ngcProofList
+      parameters:
+        - $ref: '#/components/parameters/NgcIngestSecretPrimary'
+        - $ref: '#/components/parameters/NgcIngestSecretLegacy'
+      responses:
+        '200':
+          description: Summary list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  proofs:
+                    type: array
+                    items:
+                      type: object
+        '404':
+          description: NGC ingest not configured
+        '429':
+          description: Rate limit exceeded
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Register a new user account
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+                - password
+              properties:
+                address:
+                  type: string
+                  description: Wallet address
+                  example: "wallet_address_123"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: User password (minimum 8 characters)
+                  example: "<your-strong-password>"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "user registered successfully"
+                  address:
+                    type: string
+        '400':
+          description: Invalid input
+        '409':
+          description: User already exists
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate user
+      description: Login and receive JWT tokens
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+                - password
+              properties:
+                address:
+                  type: string
+                  example: "wallet_address_123"
+                password:
+                  type: string
+                  format: password
+                  example: "<your-strong-password>"
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT access token (15 minutes)
+                  refresh_token:
+                    type: string
+                    description: JWT refresh token (7 days)
+                  expires_in:
+                    type: integer
+                    description: Access token expiration in seconds
+                    example: 900
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Revoke the caller's current access token
+      description: |
+        Adds the caller's current JWT nonce to the server-side
+        revocation store. Subsequent requests presenting the same
+        token are rejected by `AuthMiddleware` via the revocation
+        check in `AuthManager.ValidateToken`. Authentication is
+        REQUIRED — calling without a valid Bearer token returns
+        **401** (same posture as every other authenticated route).
+
+        The handler is safe under concurrent logout-then-reuse
+        races: the revocation entry lives for the full natural
+        token lifetime, so any in-flight request that already
+        passed the auth middleware completes; the revocation only
+        blocks NEW calls past `AuthMiddleware`.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "logged out"
+        '401':
+          description: Missing or invalid authentication
+        '405':
+          description: Method not allowed (only POST)
+        '503':
+          description: Auth manager not configured on this node
+
+  /wallet/create:
+    post:
+      tags:
+        - Wallet
+      summary: Create wallet
+      description: Create a new wallet (requires authentication)
+      operationId: createWallet
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Wallet created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address:
+                    type: string
+                  balance:
+                    type: number
+                    format: float
+        '401':
+          description: Unauthorized
+        '500':
+          description: Failed to create wallet (e.g. crypto or key generation error; check server logs)
+
+  /wallet/balance:
+    get:
+      tags:
+        - Wallet
+      summary: Get wallet balance
+      description: Get balance for a wallet address
+      operationId: getBalance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: address
+          in: query
+          description: Wallet address (defaults to authenticated user's address)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Balance retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address:
+                    type: string
+                  balance:
+                    type: number
+                    format: float
+        '400':
+          description: Missing address (query and no authenticated user address)
+        '401':
+          description: Unauthorized
+        '500':
+          description: Failed to read balance from storage
+
+  /wallet/send:
+    post:
+      tags:
+        - Wallet
+      summary: Send transaction
+      description: |
+        Send a transaction (requires authentication and request signing).
+        When **submesh** profiles are loaded on the node, **422** is returned if **fee** and **geotag** do not match any submesh or the signed transaction JSON exceeds the matched profile's **max_tx_size**.
+      operationId: sendTransaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - recipient
+                - amount
+              properties:
+                recipient:
+                  type: string
+                  description: Recipient wallet address
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Transaction amount
+                fee:
+                  type: number
+                  format: float
+                  description: Transaction fee
+                geotag:
+                  type: string
+                  description: Geographic tag
+                parent_cells:
+                  type: array
+                  items:
+                    type: string
+                  description: Parent cell IDs
+      responses:
+        '201':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                  status:
+                    type: string
+                    example: "pending"
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '422':
+          description: Submesh policy rejected (fee/geotag no match or transaction JSON exceeds max_tx_size when submesh_config is loaded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                submeshRoute:
+                  summary: No matching submesh
+                  value:
+                    error: Unprocessable Entity
+                    message: 'no matching submesh for fee and geotag: no matching submesh for fee 0.1000 and geoTag '
+                    status: 422
+                submeshSize:
+                  summary: Payload too large
+                  value:
+                    error: Unprocessable Entity
+                    message: 'payload exceeds submesh max_tx_size: transaction size 5000 exceeds submesh "micropayments" max_tx_size 1024'
+                    status: 422
+        '503':
+          $ref: '#/components/responses/WalletService503'
+
+  /wallet/submit-signed:
+    post:
+      tags:
+        - Wallet
+      summary: Submit a self-custody signed transaction (v0.4.0)
+      description: |
+        Accepts a fully **client-signed** `wallet.TransactionData` envelope and applies the balance change iff the envelope's ML-DSA-87 signature verifies against its own embedded `public_key` AND `sender == hex(sha256(public_key))`.
+
+        Use this endpoint instead of `/wallet/send` when the signer is **NOT** the validator's own wallet — i.e. for the browser wallet at `QSD.tech/wallet/` (Send tab) or any third-party SDK that holds the user's ML-DSA-87 private key locally. The endpoint is intentionally **unauthenticated**: the cryptographic identity IS the envelope's `public_key`, and demanding a JWT on top would force the caller to reveal a server-side session identity that has no bearing on the on-chain debit. Per-IP rate-limit caps at 10 requests/min, matching `/wallet/send`.
+
+        ## Canonical signing payload
+
+        The signature is computed over the JSON-marshalled `wallet.TransactionData` with `signature` and `public_key` fields cleared (`signature` emits as `""`; `public_key` is omitted via `omitempty`). Marshalling uses Go's `encoding/json` default struct-order field emission. The reference browser-wallet WASM helper (`QSD_wallet_sign_transaction`) is the source of truth — it runs Go's own `json.Marshal` to avoid float-format drift between Go and JavaScript.
+
+        ## Idempotency
+
+        Idempotent on `tx_id`. A duplicate POST returns **409 Conflict** with `status: "duplicate"` and echoes the original `transaction_id`. The handler is safe to retry.
+
+        ## Server-side invariants enforced
+
+        On every call the handler enforces:
+
+        1. **Sender binding** — `sender == hex(sha256(public_key))`. Mismatch → 400, `QSD_wallet_send_total{result="sender_mismatch"}`.
+        2. **Signature verification** — ML-DSA-87 verified against the envelope's own `public_key` with the canonical payload above. Mismatch → 422, `result="signature_invalid"`.
+        3. **Balance pre-flight** — `storage.GetBalance(sender) ≥ amount + fee`. Shortfall → 402, `result="insufficient_balance"`.
+        4. **Idempotency** — `storage.GetTransaction(tx_id)` hit → 409 + `status="duplicate"`, `result="duplicate"`.
+        5. **Submesh policy** — same gate as `/wallet/send` (`enforceSubmeshWalletSend`). Reject → 422, increments `QSD_submesh_api_wallet_reject_*`.
+
+        ## Known v0.4.0 gaps
+
+        v0.4.0 ships with two intentional gaps (tracked in `pkg/audit/checklist.go::api-06` and `QSD/docs/docs/V040_WALLET_SEND_DESIGN.md`):
+
+        1. **No per-account nonce** → cross-`tx_id` replay possible if the caller controls the timestamp inside the `tx_id` seed. Same-`tx_id` replay IS prevented via the 409 path. Fix planned for v0.4.1 (per-sender monotonically-increasing nonce).
+        2. **Non-atomic debit** → `storage.UpdateBalance` warns-and-proceeds on negative balance, so a concurrent race between two simultaneous submit-signed calls from the same sender can drop the on-disk balance below zero. Fix planned for v0.4.1 (single-transaction atomic debit/credit with `CHECK` constraint).
+
+        Both gaps must close before `mining-05` (incentivised testnet) exposure. They are **not a regression** — `/wallet/send` has the same posture today — but they ARE blockers for public balance-bearing endpoint exposure on a balance-bearing chain.
+      operationId: submitSignedTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+                - sender
+                - recipient
+                - amount
+                - public_key
+                - signature
+                - timestamp
+              properties:
+                id:
+                  type: string
+                  description: |
+                    Transaction ID — first 16 hex chars (8 bytes) of `sha256(sender || recipient || timestamp_ns)`. Must be unique per logical transaction; reuse triggers the 409 idempotency path.
+                  example: "f2a8b4c6d8e1f0a3b5c7d9e2f4a6b8c0"
+                sender:
+                  type: string
+                  description: |
+                    Sender address — `hex(sha256(public_key))`, 64 hex chars. MUST match the envelope's `public_key` field byte-exactly or the handler returns 400.
+                  example: "605ab7550bd6c74ce3e5b394c1f6334cea0f6e2951938ae7fc5c775a7e1ac7e2"
+                recipient:
+                  type: string
+                  description: Recipient address — `hex(sha256(recipient_public_key))`, 64 hex chars.
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0.00000001
+                  description: Transaction amount in CELL. Minimum 1 dust = 10^-8 CELL.
+                fee:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: Transaction fee in CELL. Set to 0 to omit; submesh routing may still reject a 0-fee envelope on a fee-gated submesh.
+                geotag:
+                  type: string
+                  description: ISO-3166-1 geographic tag used by the submesh router. Optional but accepted by every submesh profile.
+                  example: "US"
+                parent_cells:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 10
+                  description: Parent cell tx_ids (alphanumeric, 16–128 chars each). Two or more recommended for PoE consensus parents.
+                signature:
+                  type: string
+                  description: |
+                    Hex-encoded ML-DSA-87 signature (9254 hex chars = 4627 raw bytes) over the canonical payload described above. Produced by `QSD_wallet_sign_transaction` (browser WASM) or `QSDcli wallet sign-tx` (CLI).
+                public_key:
+                  type: string
+                  description: Hex-encoded ML-DSA-87 packed public key (5184 hex chars = 2592 raw bytes).
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: RFC 3339 UTC timestamp.
+                  example: "2026-05-13T15:34:56Z"
+      responses:
+        '200':
+          description: Transaction accepted and stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                    description: Echo of the envelope's `id` field.
+                  status:
+                    type: string
+                    enum: ["accepted"]
+                  broadcast:
+                    type: string
+                    enum: ["p2p", "local-only"]
+                    description: Indicates whether the p2p tx broadcaster was wired. `local-only` is normal for single-node test deployments.
+              examples:
+                accepted:
+                  summary: Accepted (p2p broadcast)
+                  value:
+                    transaction_id: "f2a8b4c6d8e1f0a3b5c7d9e2f4a6b8c0"
+                    status: "accepted"
+                    broadcast: "p2p"
+        '400':
+          description: |
+            Validation failure. Common reasons:
+            * Malformed envelope JSON (`invalid envelope: ...`)
+            * `sender != hex(sha256(public_key))` (`sender does not match hex(sha256(public_key))`)
+            * Address/amount/fee/geotag/parent_cells shape rejected by the input validator
+            * `public_key` or `signature` not valid hex
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: |
+            Insufficient balance — `storage.GetBalance(sender) < amount + fee`. The body reports both numbers verbatim so the client can render the shortfall.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                shortfall:
+                  summary: Sender lacks funds
+                  value:
+                    error: Payment Required
+                    message: "insufficient balance: have 0.5, need 1.01"
+                    status: 402
+        '405':
+          description: Method not allowed — only POST is accepted.
+        '409':
+          description: |
+            Duplicate `tx_id` — the envelope has already been stored. Body echoes the original `transaction_id` and reports `status: "duplicate"`. The handler is idempotent; treat the 409 as success-equivalent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: ["duplicate"]
+        '422':
+          description: |
+            * **Signature invalid** — the ML-DSA-87 signature does not verify against the envelope's `public_key` over the canonical payload. Increments `QSD_wallet_send_total{result="signature_invalid"}`.
+            * **Submesh route rejected** — fee/geotag combination doesn't match any loaded submesh profile, or the signed envelope exceeds the matched profile's `max_tx_size`. Same posture as `/wallet/send`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Storage write failed.
+        '503':
+          $ref: '#/components/responses/WalletService503'
+
+  /wallet/address:
+    get:
+      tags:
+        - Wallet
+      summary: Get wallet address
+      description: Get the authenticated user's wallet address
+      operationId: getAddress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Address retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address:
+                    type: string
+        '401':
+          description: Unauthorized
+        '503':
+          $ref: '#/components/responses/WalletService503'
+
+  /wallet/mint:
+    post:
+      tags:
+        - Wallet
+      summary: '[REMOVED in v0.3.3] Mint main coin ($CELL) — now returns 410 Gone'
+      deprecated: true
+      description: |
+        **Removed in v0.3.3 (Session 91).** This endpoint was a non-functional
+        stub in v0.3.2 and earlier: it accepted `{recipient, amount}`, returned
+        HTTP 200 with `status:"minted"`, but **never credited the recipient's
+        balance** — there was no code path from this handler to the wallet
+        service's `AddBalance` operation. A subsequent
+        `GET /wallet/balance?address=<recipient>` always returned 0.
+
+        The handler now returns **HTTP 410 Gone** with a JSON body carrying a
+        structured `migration` block. Callers should switch to:
+
+        * **New-operator funding:** `POST /wallet/send` from an existing
+          operator (peer transfer; see `MINER_QUICKSTART.md` Appendix B), or
+          wait for the public incentivised testnet (tracked as `mining-05`
+          in `RELEASE_NOTES_v0.3.0.md`).
+        * **Named token mint:** `POST /tokens/mint` is the working,
+          wallet-service-backed mint path for secondary tokens.
+
+        The `QSD_wallet_mint_total{result="gone"}` Prometheus counter
+        increments for every call to this path on v0.3.3+ nodes — a rising
+        value indicates a misconfigured caller that should be migrated.
+      operationId: mintMainCoin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 'Body is ignored — handler always returns 410 Gone.'
+      responses:
+        '410':
+          description: Endpoint removed in v0.3.3 — see `migration` field for next steps.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: gone
+                  reason:
+                    type: string
+                  migration:
+                    type: object
+                    properties:
+                      new_operator_funding:
+                        type: string
+                      named_token_minting:
+                        type: string
+                      public_testnet:
+                        type: string
+        '405':
+          description: Method not allowed (only POST is routed; GET/PUT/DELETE return 405 before the 410 evaluation).
+
+  /tokens/mint:
+    post:
+      tags:
+        - Wallet
+      summary: Mint a named token
+      description: |
+        Mints a secondary token (e.g. $JOLLY). **NVIDIA-lock** and **submesh** **422** rules match **`/wallet/mint`**.
+      operationId: mintToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token_symbol
+                - recipient
+                - amount
+              properties:
+                token_symbol:
+                  type: string
+                recipient:
+                  type: string
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0
+      responses:
+        '200':
+          description: Mint recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                  token_symbol:
+                    type: string
+                  amount:
+                    type: number
+                  recipient:
+                    type: string
+                  status:
+                    type: string
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: NVIDIA-lock blocked
+        '422':
+          $ref: '#/components/responses/SubmeshPolicy422'
+
+  /tokens/create:
+    post:
+      tags:
+        - Wallet
+      summary: Create a new token definition
+      description: |
+        Registers token metadata on the ledger. **NVIDIA-lock** applies; **422** when submesh **max_tx_size** cap is exceeded for the stored JSON.
+      operationId: createToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - symbol
+                - decimals
+                - total_supply
+              properties:
+                name:
+                  type: string
+                symbol:
+                  type: string
+                decimals:
+                  type: integer
+                  minimum: 0
+                  maximum: 18
+                total_supply:
+                  type: number
+                  format: float
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token_id:
+                    type: string
+                  name:
+                    type: string
+                  symbol:
+                    type: string
+                  decimals:
+                    type: integer
+                  total_supply:
+                    type: number
+                  status:
+                    type: string
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: NVIDIA-lock blocked
+        '422':
+          $ref: '#/components/responses/SubmeshPolicy422'
+
+  /tokens/list:
+    get:
+      tags:
+        - Wallet
+      summary: List all tokens on the QSD ledger
+      description: |
+        Public-read enumeration of every token registered on the
+        ledger: the canonical native coin (Cell / CELL / 8 decimals;
+        see `QSD/docs/docs/CELL_TOKENOMICS.md`), its deprecated
+        legacy alias (`main_coin` — kept for pre-rebrand
+        integrations through the Major Update deprecation window;
+        same Cell coin on the wire), plus every secondary token
+        registered via `POST /tokens/create`.
+
+        Unauthenticated; rate-limited at 60/min via the same
+        per-IP limiter that protects authenticated routes.
+        Designed for SDK clients and the public landing-page
+        widgets that render token catalogues without an
+        operator-granted session.
+      operationId: listTokens
+      responses:
+        '200':
+          description: Token catalogue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tokens:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        token_id:
+                          type: string
+                          example: "main_cell"
+                        name:
+                          type: string
+                          example: "Cell"
+                        symbol:
+                          type: string
+                          example: "CELL"
+                        decimals:
+                          type: integer
+                          example: 8
+                        total_supply:
+                          type: number
+                          format: float
+                  count:
+                    type: integer
+                    description: Number of tokens in the catalogue (matches `len(tokens)`)
+        '405':
+          description: Method not allowed (only GET)
+
+  /transactions:
+    get:
+      tags:
+        - Transactions
+      summary: List transactions
+      description: Get recent transactions for an address
+      operationId: listTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: "Maximum number of transactions to return (default: 50, max: 1000)"
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 50
+      responses:
+        '200':
+          description: Transactions retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  transactions:
+                    type: array
+                    items:
+                      type: object
+                  limit:
+                    type: integer
+                  count:
+                    type: integer
+        '401':
+          description: Unauthorized
+        '501':
+          description: Not implemented (storage backend doesn't support this)
+
+  /transactions/{txId}:
+    get:
+      tags:
+        - Transactions
+      summary: Get transaction by ID
+      description: Retrieve a specific transaction by its ID
+      operationId: getTransaction
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: txId
+          in: path
+          required: true
+          description: Transaction ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  sender:
+                    type: string
+                  recipient:
+                    type: string
+                  amount:
+                    type: number
+                  timestamp:
+                    type: string
+        '401':
+          description: Unauthorized
+        '404':
+          description: Transaction not found
+        '501':
+          description: Not implemented (storage backend doesn't support this)
+
+  /validator/validate:
+    post:
+      tags:
+        - Validator
+      summary: Validate transaction
+      description: Validate a transaction using 3D mesh validation
+      operationId: validateTransaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transaction_id
+                - parent_cells
+                - data
+              properties:
+                transaction_id:
+                  type: string
+                parent_cells:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      data:
+                        type: string
+                        format: byte
+                        description: Base64-encoded data
+                data:
+                  type: string
+                  format: byte
+                  description: Base64-encoded transaction data
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+
+  # --------------------------------------------------------------------------
+  # Status (public)
+  # --------------------------------------------------------------------------
+
+  /status:
+    get:
+      tags:
+        - Status
+      summary: Public node status
+      description: |
+        Unauthenticated public-read endpoint surfacing the `node_role`
+        (`validator`/`miner`), build profile, mining flag, the native
+        coin metadata (Cell / CELL / 8 decimals), branding strings,
+        and a snapshot of the §8 emission schedule. Powers the SDK
+        client's "what kind of node am I talking to?" probe and the
+        dashboard's network/role/coin pills.
+      operationId: nodeStatus
+      responses:
+        '200':
+          description: Node status snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeStatus'
+
+  # --------------------------------------------------------------------------
+  # Wallet — v0.4.1 nonce helper
+  # --------------------------------------------------------------------------
+
+  /wallet/nonce:
+    get:
+      tags:
+        - Wallet
+      summary: Read next nonce for a self-custody envelope
+      description: |
+        v0.4.1 (Session 100) public-read helper that lets a self-custody
+        client fetch the next envelope nonce without an authenticated
+        session. Symmetric with `/wallet/balance`: read-only,
+        address-required-in-query, no JWT. The returned `nonce` is the
+        next allowed value the chain will accept for a `tx.nonce` field
+        on this address. Replay protection is enforced server-side by
+        `pkg/storage` on `submit-signed`. See
+        `V041_REPLAY_PROTECTION_DESIGN.md` §5.2.
+      operationId: walletNonce
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Wallet address (sender = hex(sha256(public_key)))
+      responses:
+        '200':
+          description: Next allowed nonce
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address:
+                    type: string
+                  nonce:
+                    type: integer
+                    format: int64
+                    description: Next acceptable transaction nonce
+        '400':
+          description: Missing or malformed `address`
+
+  # --------------------------------------------------------------------------
+  # Audit — transparency surface (Session 77 / v0.4.2)
+  # --------------------------------------------------------------------------
+
+  /audit/summary:
+    get:
+      tags:
+        - Audit
+      summary: Audit checklist summary
+      description: |
+        Public-API mirror of the dashboard's `/api/audit/summary`
+        (bearer-gated). Returns bucket counts, score, blocking-findings
+        flag and preview, and a 4-bucket evidence-provenance breakdown
+        of the runtime-verified items in `pkg/audit/checklist.go`.
+
+        Wire shape is byte-for-byte identical to the dashboard view, so
+        an SDK client can drop-replace
+        `https://dashboard.QSD.tech/api/audit/summary` with
+        `https://api.QSD.tech/api/v1/audit/summary` and get the same
+        JSON. Pinned by `TestAuditAPI_WireParity_DashboardAndAPI`.
+
+        Cache: `Cache-Control: public, max-age=60`. A flip is a Git
+        commit + redeploy event; 60 s of staleness is acceptable.
+      operationId: auditSummary
+      responses:
+        '200':
+          description: Current audit checklist summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditSummary'
+        '405':
+          description: Method not allowed (only GET)
+
+  /audit/items:
+    get:
+      tags:
+        - Audit
+      summary: Audit checklist items (filterable)
+      description: |
+        Full filterable items list, public mirror of the dashboard's
+        `/api/audit/items`. All three filters are closed-enum
+        validated against `pkg/audit` constants — a typo'd value
+        returns **400**, NOT a silent "all items" passthrough.
+        Applied filters are echoed back via `filters` (omitted when
+        no filter is set).
+      operationId: auditItems
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - cryptography
+              - authentication
+              - authorisation
+              - network
+              - smart_contracts
+              - bridge
+              - storage
+              - api
+              - governance
+              - infrastructure
+              - supply_chain
+              - runtime
+              - secret_rotation
+              - rebrand
+              - tokenomics
+              - mining_audit
+              - trust_api
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [critical, high, medium, low, info]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, passed, failed, waived]
+      responses:
+        '200':
+          description: Filtered items list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditItemsResponse'
+        '400':
+          description: Closed-enum filter parameter mis-typed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '405':
+          description: Method not allowed
+
+  /audit/badge.svg:
+    get:
+      tags:
+        - Audit
+      summary: Server-rendered SVG audit-score badge
+      description: |
+        Renders a 20-pixel-tall, shields.io-style status pill SVG
+        with the current audit score and bucket totals (e.g.
+        `QSD audit | 95.40% (83/87)`). Colour is computed from the
+        score on the standard shields.io ladder:
+
+        | Score range  | Colour       | Hex     |
+        |--------------|--------------|---------|
+        | `>= 95`      | brightgreen  | `#4c1`  |
+        | `>= 85`      | yellowgreen  | `#a4a61d` |
+        | `>= 70`      | yellow       | `#dfb317` |
+        | `>= 50`      | orange       | `#fe7d37` |
+        | `< 50`       | red          | `#e05d44` |
+
+        The badge bucket count displays `passed+waived` over `total`
+        (matching what the dashboard scoreboard surfaces). When the
+        checklist somehow has zero items the renderer fails safe to
+        a static `0/0` instead of the literal text `NaN%` that some
+        browsers would display from a div-by-zero — an obvious
+        "something is wrong on the server" signal that does not
+        break the badge image.
+
+        Public read (no auth, no signing). Cached 60 s
+        (`Cache-Control: public, max-age=60`); a flip is a Git
+        commit + redeploy event so 60 s of staleness is acceptable.
+        `X-Content-Type-Options: nosniff` on every response.
+      operationId: auditBadgeSVG
+      responses:
+        '200':
+          description: SVG badge image
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: "public, max-age=60"
+            X-Content-Type-Options:
+              schema:
+                type: string
+                example: "nosniff"
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+                description: Shields.io-style two-panel SVG (label + value)
+        '405':
+          description: Method not allowed (only GET)
+
+  # --------------------------------------------------------------------------
+  # Trust — transparency surface (Major Update §8.5)
+  # --------------------------------------------------------------------------
+
+  /trust/attestations/summary:
+    get:
+      tags:
+        - Trust
+      summary: NGC attestation summary
+      description: |
+        Anti-claim transparency widget (§8.5.3). Always returns "X of
+        Y attested" so the consumer can never display a bare count.
+        Zero opt-in and NGC-outage states are legal 200 responses —
+        they are NOT hidden, NOT loading-forever. Returns **503
+        warming up** for the first 60 s after the aggregator starts,
+        and **404** if the operator opted out by setting
+        `TrustDisabled=true`.
+
+        Cache: `Cache-Control: public, max-age=5`.
+      operationId: trustSummary
+      responses:
+        '200':
+          description: Aggregator summary snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustSummary'
+        '404':
+          description: Trust endpoints disabled on this node
+        '503':
+          description: Trust aggregator warming up (first 60 s after start)
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before retrying
+
+  /trust/attestations/recent:
+    get:
+      tags:
+        - Trust
+      summary: NGC attestation recent rows
+      description: |
+        Up to `limit` of the freshest attestation rows sorted
+        newest-first. `node_id_prefix` is always first-8 + "…" +
+        last-4 chars of the peer ID — the aggregator enforces this
+        redaction before cache insertion. `region_hint` is the
+        coarse 4-bucket taxonomy from §8.5.3.
+      operationId: trustRecent
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: Page size; clamped to [1, 200].
+      responses:
+        '200':
+          description: Recent attestations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustRecent'
+        '400':
+          description: Invalid limit
+        '404':
+          description: Trust endpoints disabled on this node
+        '503':
+          description: Trust aggregator warming up
+
+  # --------------------------------------------------------------------------
+  # Attest — v2 mining attestation rejection ring (transparency)
+  # --------------------------------------------------------------------------
+
+  /attest/recent-rejections:
+    get:
+      tags:
+        - Attest
+      summary: Recent attestation rejections
+      description: |
+        Bounded ring buffer of the most recent attestation-rejection
+        records plus per-field rune-truncation counters. Public so
+        independent observers can cross-check a validator's advisory
+        state without an operator-granted session. The handler
+        validates the `kind` filter against an authoritative
+        closed-enum allow-list (typo → 400). When the v2 store has
+        not been wired (v1-only deployments), the response is still
+        200 with an empty records array and zero-valued metrics —
+        operators want to see "store: not wired" rather than a
+        blank tile.
+      operationId: recentRejections
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - archspoof_unknown_arch
+              - archspoof_gpu_name_mismatch
+              - archspoof_cc_subject_mismatch
+              - hashrate_out_of_band
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+          description: Drop records strictly older than this Unix-seconds timestamp
+      responses:
+        '200':
+          description: Recent rejection records + metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                  records:
+                    type: array
+                    items:
+                      type: object
+                  total_matches:
+                    type: integer
+                  limit:
+                    type: integer
+                  filters:
+                    type: object
+                    additionalProperties: true
+                  metrics:
+                    type: object
+                    additionalProperties: true
+        '400':
+          description: Bad limit / kind / since query parameter
+
+  # --------------------------------------------------------------------------
+  # Governance — v2 mining runtime parameter tuning (read endpoints)
+  # --------------------------------------------------------------------------
+
+  /governance/params:
+    get:
+      tags:
+        - Governance
+      summary: Governance parameters snapshot
+      description: |
+        Read companion to the off-chain `QSD/gov/v1` write path that
+        flows through `/transactions`. Returns 503 until a provider
+        is installed via `api.SetGovernanceProvider(...)`. See
+        `MINING_PROTOCOL_V2.md` §9.4.
+      operationId: governanceParams
+      responses:
+        '200':
+          description: Governance parameter snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '503':
+          description: Governance provider not wired
+
+  /governance/params/{name}:
+    get:
+      tags:
+        - Governance
+      summary: Single governance parameter
+      description: |
+        Path-routed companion to `/governance/params`. Mux pattern
+        order in `pkg/api/handlers.go` matters: the trailing-slash
+        variant comes first so `/params/{name}` routes through this
+        handler.
+      operationId: governanceParam
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Parameter value
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: Parameter unknown
+        '503':
+          description: Governance provider not wired
+
+  # --------------------------------------------------------------------------
+  # Receipts — public chain transparency
+  # --------------------------------------------------------------------------
+
+  /receipts:
+    get:
+      tags:
+        - Receipts
+      summary: Recent transactions list
+      description: |
+        Height-range list endpoint that powers the chain dashboard's
+        "recent transactions" tile. Public — anyone observing the
+        chain can independently render the recent-tx stream without
+        an operator session. Returns 503 until a probe is wired.
+      operationId: receiptsRecent
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+      responses:
+        '200':
+          description: Recent receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  receipts:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '400':
+          description: Invalid limit
+        '503':
+          description: Receipts probe not wired
+
+  /receipts/{tx_id}:
+    get:
+      tags:
+        - Receipts
+      summary: Per-transaction receipt
+      description: |
+        Read-only per-tx outcome probe (TxApplied / TxFailed log +
+        status code). Receipts live on-chain implicitly via the
+        state-root hash, so exposing them publicly is the canonical
+        "trust transparency" posture: anyone who saw a tx submission
+        can independently confirm it landed and at what status.
+      operationId: receiptByTxID
+      parameters:
+        - name: tx_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          description: tx_id unknown or FIFO-evicted from the bounded store
+        '503':
+          description: Receipts probe not wired
+
+  # --------------------------------------------------------------------------
+  # Network — live topology projection (auth)
+  # --------------------------------------------------------------------------
+
+  /network/topology:
+    get:
+      tags:
+        - Network
+      summary: Live network topology
+      description: |
+        Live JSON projection of the current peer set. The shape
+        matches `internal/topology.BuildLiveView` so the existing
+        dashboard WebGL renderer can consume it directly. Returns
+        an empty topology (200) when no `TopologyProvider` is
+        installed — keeps the dashboard UI functional on
+        cold-start.
+      operationId: networkTopology
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Topology projection
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  live_peer_count:
+                    type: integer
+                  healthy_peers:
+                    type: integer
+                  cells:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '401':
+          description: Unauthorized
+
+  # --------------------------------------------------------------------------
+  # Versions — API version catalogue (MED-4)
+  # --------------------------------------------------------------------------
+
+  /versions:
+    get:
+      tags:
+        - Versions
+      summary: API version catalogue
+      description: |
+        Returns the catalogue of every registered API major version
+        (today: just `v1`) with lifecycle status and, where set,
+        deprecation / sunset / successor metadata. Designed so an
+        SDK can render a "deprecated" badge in tooling without
+        scraping every endpoint response for `Deprecation` /
+        `Sunset` headers.
+
+        Lifecycle states (`status` field):
+
+        - `active`     — version is the supported current line.
+        - `deprecated` — still routed; responses carry
+                         `Deprecation: true|<RFC1123>` and (if set)
+                         `Sunset: <RFC1123>` plus `Link
+                         rel="successor-version"` /
+                         `Link rel="deprecation"`. See
+                         `DeprecationMiddleware` in
+                         `pkg/api/versioning.go`.
+        - `sunset`     — middleware short-circuits with **410 Gone**
+                         and a JSON body pointing at the migration
+                         guide.
+
+        The `current` field names the supported version (e.g.
+        `"v1"`). Rate-limited per-IP by the standard limiter; no
+        bearer auth required.
+      operationId: apiVersions
+      responses:
+        '200':
+          description: Version catalogue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current:
+                    type: string
+                    example: "v1"
+                  versions:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - name
+                        - prefix
+                        - status
+                      properties:
+                        name:
+                          type: string
+                          example: "v1"
+                        prefix:
+                          type: string
+                          example: "/api/v1"
+                        status:
+                          type: string
+                          enum: [active, deprecated, sunset]
+                        deprecated_at:
+                          type: string
+                          format: date-time
+                        sunset_at:
+                          type: string
+                          format: date-time
+                        successor_version:
+                          type: string
+                          example: "v2"
+                        migration_guide_url:
+                          type: string
+                          format: uri
+        '405':
+          description: Method not allowed (only GET)
+
+components:
+  responses:
+    SubmeshPolicy422:
+      description: Submesh strictest max_tx_size exceeded for this ledger payload (when submesh profiles are loaded)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    WalletService503:
+      description: |
+        The node's wallet service did not initialize at startup (CGO wallet path). Check server logs — often liboqs/OpenSSL or key material.
+        **POST /wallet/create** does not use this path; it creates a wallet per request and may return **500** instead.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Service Unavailable
+            message: wallet service not available (wallet did not initialize at node startup; check logs — e.g. liboqs/OpenSSL on CGO builds)
+            status: 503
+
+  parameters:
+    NgcIngestSecretPrimary:
+      name: X-QSD-NGC-Secret
+      in: header
+      required: false
+      schema:
+        type: string
+      description: NGC ingest shared secret (required for challenge/proof routes when ingest is enabled).
+    NgcIngestSecretLegacy:
+      name: X-QSD-NGC-Secret
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Legacy alias for X-QSD-NGC-Secret.
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token signed with CRYSTALS-Dilithium (quantum-safe).
+        Token format: base64(claims) + "." + base64(signature)
+        
+        For POST/PUT/DELETE requests, also include:
+        - X-Timestamp: Unix timestamp (seconds)
+        - X-Nonce: Unique nonce (32 bytes, base64)
+        - X-Signature: Request signature (base64, quantum-safe)
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        status:
+          type: integer
+
+    # ------------------------------------------------------------------
+    # Status (public)
+    # ------------------------------------------------------------------
+
+    NodeStatus:
+      type: object
+      description: Public node status snapshot returned by GET /status.
+      properties:
+        node_role:
+          type: string
+          enum: [validator, miner]
+          description: Configured role of this process
+        build_profile:
+          type: string
+          description: Compile-time build profile (e.g. `full`, `validator-only`)
+        mining_enabled:
+          type: boolean
+        coin:
+          type: object
+          description: Native coin metadata (Cell / CELL / 8 decimals)
+          additionalProperties: true
+        branding:
+          type: object
+          description: Project branding strings (name, repository, docs URL)
+          additionalProperties: true
+        emission:
+          type: object
+          description: Snapshot of the §8 emission schedule (current epoch, reward, halving height, supply cap)
+          additionalProperties: true
+        version:
+          type: string
+          description: Semver of the running binary
+
+    # ------------------------------------------------------------------
+    # Audit checklist (Session 77 / v0.4.2)
+    # ------------------------------------------------------------------
+
+    AuditSummary:
+      type: object
+      description: |
+        Wire shape of GET /audit/summary. Mirrors
+        `dashboardAuditSummaryView` in `internal/dashboard/audit.go`
+        byte-for-byte; pinned by `TestAuditAPI_WireParity_DashboardAndAPI`.
+      required:
+        - summary
+        - score
+        - has_blocking_findings
+        - blocking_count
+        - blocking_preview
+        - evidence_provenance
+        - generated_at
+      properties:
+        summary:
+          type: object
+          description: |
+            Bucket-count dictionary `{total, passed, pending, failed,
+            waived}` from `audit.Checklist.Summary()`.
+          additionalProperties:
+            type: integer
+          example:
+            total: 85
+            passed: 27
+            pending: 58
+            failed: 0
+            waived: 0
+        score:
+          type: number
+          format: double
+          description: |
+            (passed + waived) / total expressed as a 0..100 float.
+        has_blocking_findings:
+          type: boolean
+          description: |
+            True if ANY critical/high item is still pending or failed.
+            The single-bit "is the audit gated?" answer for clients
+            that don't want to count buckets.
+        blocking_count:
+          type: integer
+          description: |
+            Total count of critical+high items still pending or
+            failed. Distinct from `len(blocking_preview)` which is
+            capped at 5.
+        blocking_preview:
+          type: array
+          description: |
+            Up to 5 still-blocking items in checklist insertion order.
+            Empty (not nil) array when nothing blocks.
+          items:
+            $ref: '#/components/schemas/AuditBlockingItem'
+        evidence_provenance:
+          type: object
+          description: |
+            Count breakdown of the passed items by `ReviewedBy` prefix.
+            Always emits the three canonical `evidence:*` buckets (even
+            at zero) plus an `other` bucket for forward-compat drift
+            detection.
+          additionalProperties:
+            type: integer
+          example:
+            evidence:live-deploy: 11
+            evidence:in-tree-tests: 8
+            evidence:in-tree: 8
+            other: 0
+        generated_at:
+          type: string
+          format: date-time
+          description: RFC3339 wall-clock timestamp at response time
+
+    AuditBlockingItem:
+      type: object
+      description: One row of AuditSummary.blocking_preview.
+      required: [id, category, severity, status, title]
+      properties:
+        id:
+          type: string
+          example: crypto-01
+        category:
+          type: string
+          example: cryptography
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        status:
+          type: string
+          enum: [pending, passed, failed, waived]
+        title:
+          type: string
+
+    AuditItemsResponse:
+      type: object
+      description: Wire shape of GET /audit/items.
+      required: [items, total_matches, generated_at]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditChecklistItem'
+        total_matches:
+          type: integer
+          description: Always equal to `len(items)`; explicit so clients render "showing N matches" without counting.
+        filters:
+          $ref: '#/components/schemas/AuditEchoedFilters'
+        generated_at:
+          type: string
+          format: date-time
+
+    AuditChecklistItem:
+      type: object
+      description: |
+        One row of `pkg/audit.ChecklistItem` as serialised by the
+        public API. Includes review provenance (`reviewed_by`,
+        `reviewed_at`) for items that have been flipped from
+        pending.
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+        severity:
+          type: string
+          enum: [critical, high, medium, low, info]
+        status:
+          type: string
+          enum: [pending, passed, failed, waived]
+        title:
+          type: string
+        description:
+          type: string
+        reviewed_by:
+          type: string
+          description: |
+            Closed-enum reviewer prefix for runtime-verified items —
+            one of `evidence:live-deploy`, `evidence:in-tree-tests`,
+            `evidence:in-tree`. Empty string for items still pending.
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+
+    AuditEchoedFilters:
+      type: object
+      description: |
+        Server-side echo of the filter parameters actually applied.
+        Omitted from the response (per `omitempty`) when no filter
+        was set.
+      properties:
+        category:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+
+    # ------------------------------------------------------------------
+    # Trust attestation (Major Update §8.5)
+    # ------------------------------------------------------------------
+
+    TrustSummary:
+      type: object
+      description: Anti-claim transparency widget payload (§8.5.3).
+      required: [attested, total_public, ratio, fresh_within, last_checked_at, ngc_service_status, scope_note]
+      properties:
+        attested:
+          type: integer
+        total_public:
+          type: integer
+          description: Always emitted so UI can render "X of Y" — never bare "X".
+        ratio:
+          type: number
+          format: double
+          description: attested / total_public (0..1)
+        fresh_within:
+          type: string
+          description: Freshness window as a Go duration string (e.g. "15m0s")
+        last_attested_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: RFC3339; null when no attestation has ever been seen
+        last_checked_at:
+          type: string
+          format: date-time
+        ngc_service_status:
+          type: string
+          enum: [healthy, degraded, outage]
+        scope_note:
+          type: string
+          description: Verbatim reminder that NVIDIA-lock is opt-in, not a consensus rule (§8.5.2). Scrapers cannot strip the caveat without tampering with the body.
+
+    TrustAttestation:
+      type: object
+      description: One row of TrustRecent.attestations.
+      required: [node_id_prefix, attested_at, fresh_age_seconds, gpu_available, ngc_hmac_ok, region_hint]
+      properties:
+        node_id_prefix:
+          type: string
+          description: First-8 + "…" + last-4 chars of the peer ID. Aggregator-enforced redaction.
+        attested_at:
+          type: string
+          format: date-time
+        fresh_age_seconds:
+          type: integer
+          format: int64
+        gpu_architecture:
+          type: string
+        gpu_available:
+          type: boolean
+        ngc_hmac_ok:
+          type: boolean
+        region_hint:
+          type: string
+          enum: [eu, us, apac, other]
+
+    TrustRecent:
+      type: object
+      description: Wire shape of GET /trust/attestations/recent.
+      required: [fresh_within, count, attestations]
+      properties:
+        fresh_within:
+          type: string
+        count:
+          type: integer
+        attestations:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrustAttestation'
+

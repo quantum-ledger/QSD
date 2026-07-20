@@ -1,0 +1,68 @@
+/* humanstxt.org — the humans responsible & technology colophon */
+
+/* TEAM */
+
+  Project lead, sole founder: Joedel Lopez Dalioan (Blackbeard)
+  GitHub:                     https://github.com/quantum-ledger
+  Project:                    https://github.com/quantum-ledger/QSD
+  Location:                   Manila, Philippines
+
+  AI pair-programming partner: Cursor / Claude (sessions 60+ — every
+  source file with a "session N" comment was co-edited in a Cursor
+  session, with all decisions, deploys, and signatures owned by the
+  human above).
+
+
+/* THANKS */
+
+  The QSD public network stands on the shoulders of these open-source
+  projects (full list in QSD/source/go.mod):
+
+  - libp2p           — peer-to-peer networking
+  - cloudflare/circl — post-quantum signatures (ML-DSA-87 / FIPS 204)
+  - wazero          — pure-Go WebAssembly runtime for smart contracts
+  - Caddy           — TLS termination + reverse proxy at the edge
+  - Prometheus      — operational metrics scrape target
+  - Grafana         — dashboard rendering
+
+  And to every operator running a validator, miner, Hive, or Relay against
+  the public network — your bug reports, log paste-ins, and "this
+  doesn't work" pings are why the public audit score is where it
+  is. Thank you.
+
+
+/* SITE */
+
+  Last update:  2026-07-09
+  Language:     English
+  Doctype:      HTML5
+  Standards:    HTML5, CSS3, JSON-LD (schema.org/SoftwareApplication), RFC 9116
+  Components:   Vanilla HTML + CSS + JavaScript — no build step,
+                no React, no bundler. Marketing pages are hand-edited.
+                The docs SPA at /docs/ fetches Markdown from GitHub main.
+                The browser wallet at /wallet.html embeds /wallet.wasm
+                (cloudflare/circl ML-DSA-87 compiled to WebAssembly).
+  Software:     Backend in Go, frontend in vanilla JS, edge in
+                Caddy, observability in Prometheus + Grafana, source
+                control in git/GitHub. Desktop client: QSD Hive.
+
+  Product surfaces:
+    /                             — Hive + CELL + capabilities
+    /download.html                — Hive 1.4.0 + Wallet Extension 0.2.0 + Edge Control 1.3.5
+    /docs/                        — knowledge-base SPA
+    /wallet.html                  — self-custody ML-DSA-87 wallet
+    /explorer.html                — blocks, txs, accounts
+    /validators.html              — bootstrap peers
+    /chain.html                   — live status board
+    /api.html                     — HTTP v1 vs mining v2 explainer
+
+  Transparency surfaces:
+    /audit.html                   — public audit checklist
+    /api/v1/audit/summary         — machine-readable score + counts
+    /api/v1/audit/items           — machine-readable per-row list
+    /api/v1/audit/badge.svg       — embeddable SVG badge
+    /trust.html                   — recent attestations + scope notes
+    /api/v1/trust/attestations/*  — machine-readable attestation feed
+    /.well-known/security.txt     — RFC 9116 security disclosure
+    /sitemap.xml                  — site index
+    /humans.txt                   — this file

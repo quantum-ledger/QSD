@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Download QSD Hive</title>
+  <meta
+    name="description"
+    content="Download QSD Hive for Windows or Linux. CELL wallets, signed tasks, NVIDIA mining, and pooled edge participation."
+  />
+  <meta name="theme-color" content="#061116" />
+  <link rel="icon" href="/assets/QSD-hive-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #061116;
+      --fg: #f4fbfd;
+      --muted: rgba(173, 198, 204, 0.72);
+      --muted-2: rgba(173, 198, 204, 0.45);
+      --border: rgba(142, 220, 224, 0.16);
+      --border-hover: rgba(142, 220, 224, 0.34);
+      --card: #0c242c;
+      --accent: #d6b75f;
+      --gold: #d6b75f;
+      --teal: #8edce0;
+      --ink: #061116;
+      --max: 80rem;
+      --font: "Outfit", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      font-family: var(--font);
+      font-size: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+
+    .shell {
+      width: min(var(--max), calc(100% - 2rem));
+      margin: 0 auto;
+    }
+    @media (min-width: 1024px) {
+      .shell { width: min(var(--max), calc(100% - 3rem)); }
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: rgba(6, 17, 22, 0.82);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 64px;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 600;
+      font-size: 1.05rem;
+      letter-spacing: 0;
+    }
+
+    .brand img { width: 28px; height: 28px; border-radius: 6px; }
+
+    .nav-mid {
+      display: none;
+      align-items: center;
+      gap: 0.15rem;
+    }
+
+    .nav-mid a {
+      padding: 0.45rem 0.75rem;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .nav-mid a:hover { color: var(--fg); background: rgba(142, 220, 224, 0.08); }
+
+    .nav-right { display: flex; align-items: center; gap: 0.5rem; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background 150ms var(--ease), transform 150ms var(--ease);
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .btn-ghost {
+      color: var(--fg);
+      border-color: rgba(142, 220, 224, 0.28);
+      background: transparent;
+    }
+
+    .btn-ghost:hover { background: rgba(142, 220, 224, 0.08); }
+
+    .btn-solid {
+      color: var(--ink, #061116);
+      background: var(--gold, var(--accent));
+      border-color: rgba(214, 183, 95, 0.9);
+    }
+
+    .btn-solid:hover { background: #e0c56f; }
+
+    .btn[aria-disabled="true"] {
+      opacity: 0.58;
+      cursor: not-allowed;
+      pointer-events: none;
+      transform: none;
+    }
+
+    @media (min-width: 1024px) {
+      .nav-mid { display: flex; }
+    }
+
+    main { padding: 3.5rem 0 5rem; }
+
+    .hero {
+      max-width: 42rem;
+      margin: 0 auto 3.5rem;
+      text-align: center;
+    }
+
+    .hero .tag {
+      display: inline-flex;
+      margin-bottom: 1.25rem;
+      padding: 0.3rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    h1 {
+      margin: 0 0 1rem;
+      font-size: 3.75rem;
+      font-weight: 600;
+      letter-spacing: 0;
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .panel {
+      display: grid;
+      gap: 1.25rem;
+      padding: 1.5rem;
+      margin-bottom: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+    }
+
+    @media (min-width: 860px) {
+      .panel {
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 0.42fr);
+        align-items: center;
+      }
+    }
+
+    .version {
+      display: inline-flex;
+      margin-bottom: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(245, 245, 245, 0.06);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+
+    h2 {
+      margin: 0 0 0.65rem;
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .panel p {
+      margin: 0 0 1.1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .checksum {
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--muted-2);
+      font-size: 0.8rem;
+      overflow-wrap: anywhere;
+    }
+
+    .checksum code {
+      display: block;
+      margin-top: 0.35rem;
+      color: rgba(245, 245, 245, 0.75);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      line-height: 1.5;
+    }
+
+    .checksum strong {
+      display: block;
+      margin-top: 0.85rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .section-title {
+      margin: 3rem 0 1rem;
+      font-size: 2.1rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .grid-2, .grid-3 {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    @media (min-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr 1fr; }
+      .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    }
+
+    .card {
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--muted-2);
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .card h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .card a {
+      color: var(--fg);
+      border-bottom: 1px solid rgba(245, 245, 245, 0.2);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .card code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      color: rgba(245, 245, 245, 0.7);
+    }
+
+    footer {
+      padding: 2rem 0 2.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted-2);
+      font-size: 0.85rem;
+    }
+
+    .footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 639px) {
+      h1 { font-size: 2.4rem; }
+      .section-title { font-size: 1.6rem; }
+      .nav-right .btn { padding-inline: 0.75rem; }
+    }
+
+    footer a:hover { color: var(--fg); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <nav class="nav" aria-label="Primary">
+        <a class="brand" href="/">
+          <img src="/assets/QSD-hive-icon.png" alt="" />
+          <span>QSD</span>
+        </a>
+        <div class="nav-mid">
+          <a href="/#products">Products</a>
+          <a href="/#api">Developers</a>
+          <a href="/docs/">Docs</a>
+          <a href="/explorer.html">Explorer</a>
+          <a href="/audit.html">Audit</a>
+        </div>
+        <div class="nav-right">
+          <a class="btn btn-ghost" href="/wallet.html">Wallet</a>
+          <a class="btn btn-solid" href="/download.html" aria-current="page">Download Hive</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero" aria-labelledby="download-title">
+      <span class="tag">Hive 1.4.0 · Edge Control 1.3.5</span>
+      <h1 id="download-title">Download QSD Hive</h1>
+      <p class="lead">
+        Windows and Linux client for CELL wallets, signed tasks, NVIDIA mining,
+        and pooled CPU, GPU, and RAM participation.
+      </p>
+    </section>
+
+    <section class="panel" aria-labelledby="integrity-title">
+      <div>
+        <span class="version">Release integrity</span>
+        <h2 id="integrity-title">Release integrity</h2>
+        <p>
+          QSD Hive for Windows is currently published without Microsoft
+          Authenticode signing. The SignPath Foundation application was declined
+          for now because QSD needs more external public adoption signals
+          before Foundation sponsorship is available.
+        </p>
+        <p>
+          Verify the SHA-256 checksum before installing. A checksum detects
+          changed bytes; it does not make Windows show a verified publisher.
+          SmartScreen may warn until QSD has a paid or accepted Authenticode
+          signing path.
+        </p>
+        <p>
+          QSD-native ML-DSA-87 signatures authenticate release manifests and
+          artifact hashes independently of Microsoft Authenticode trust.
+        </p>
+        <div class="actions">
+          <a class="btn btn-ghost" href="https://github.com/quantum-ledger/QSD/blob/main/CODE_SIGNING_POLICY.md" rel="noopener" target="_blank">Code signing policy</a>
+          <a class="btn btn-ghost" href="https://github.com/quantum-ledger/QSD/blob/main/PRIVACY.md" rel="noopener" target="_blank">Privacy policy</a>
+          <a class="btn btn-ghost" href="https://github.com/quantum-ledger/QSD/blob/main/SECURITY.md" rel="noopener" target="_blank">Security reporting</a>
+        </div>
+      </div>
+      <div class="checksum">
+        Current Windows builds are unsigned. Trust the release only after the
+        versioned download URL, SHA-256 checksum, and QSD-native release
+        signature match the public manifest.
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="installer-title">
+      <div>
+        <span class="version">Version 1.4.0</span>
+        <h2 id="installer-title">Windows installer</h2>
+        <p>
+          Current QSD Hive release for Windows. Automatic update checks use the
+          normal latest-release channel. Windows SmartScreen may warn because
+          this installer is not Authenticode-signed. No separate consumer GUI
+          miner is shipped.
+        </p>
+        <div class="actions">
+          <a class="btn btn-solid" href="/downloads/QSD-hive-1.4.0-win-x64.exe" download>Download Hive 1.4.0</a>
+          <a class="btn btn-ghost" href="/downloads/SHA256SUMS-win.txt">Checksums</a>
+          <a class="btn btn-ghost" href="/docs/#/QSD-hive">Installation notes</a>
+        </div>
+      </div>
+      <div class="checksum">
+        <strong>Release verification</strong>
+        <code>See SHA256SUMS-win.txt</code>
+        <span>Verify the hash before running. This Windows installer is unsigned and may trigger SmartScreen.</span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="linux-title">
+      <div>
+        <span class="version">Version 1.4.0</span>
+        <h2 id="linux-title">Linux x86-64</h2>
+        <p>
+          Use the AppImage on desktop Linux with GTK 3, or the tar package for a portable
+          installation. Ordinary users do not need a local Core. Wallet keys stay local;
+          signed miner enrollment goes to canonical Core.
+        </p>
+        <div class="actions">
+          <a class="btn btn-solid" href="/downloads/QSD-hive-1.4.0-linux-x86_64.AppImage" download>Download AppImage</a>
+          <a class="btn btn-solid" href="/downloads/QSD-hive-1.4.0-linux-x64.tar.gz" download>Download tar.gz</a>
+          <a class="btn btn-ghost" href="/downloads/QSD-hive-1.4.0-linux-SHA256SUMS.txt">Checksums</a>
+        </div>
+      </div>
+      <div class="checksum">
+        <strong>Release verification</strong>
+        <code>See QSD-hive-1.4.0-linux-SHA256SUMS.txt</code>
+        <span>Verify the package hash before running QSD Hive.</span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="wallet-extension-title">
+      <div>
+        <span class="version">Version 0.2.0</span>
+        <h2 id="wallet-extension-title">QSD Wallet browser extension</h2>
+        <p>
+          Connect supported websites to the active wallet in QSD Hive without
+          copying a keystore or passphrase into the browser. Install Hive 1.4.0
+          first. Until browser-store distribution is available, unzip this
+          package and load its folder from your Chromium browser's extension page.
+        </p>
+        <div class="actions">
+          <a class="btn btn-solid" href="/downloads/QSD-hive-wallet-extension-0.2.0.zip" download>Download extension</a>
+          <a class="btn btn-ghost" href="/downloads/QSD-hive-wallet-extension-0.2.0-SHA256SUMS.txt">Checksum</a>
+          <a class="btn btn-ghost" href="https://github.com/quantum-ledger/QSD/tree/main/apps/QSD-hive-wallet-extension" rel="noopener" target="_blank">Setup guide</a>
+        </div>
+      </div>
+      <div class="checksum">
+        <strong>Security boundary</strong>
+        <span>Hive keeps the wallet secrets. Each website connection and every signing or CELL transfer action requires explicit approval.</span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="edge-agent-title">
+      <div>
+        <span class="version">Edge Control 1.3.5</span>
+        <h2 id="edge-agent-title">Agent and Relay utilities</h2>
+        <p>
+          Standalone Edge Control for trusted lab or office computers. Support utilities only —
+          QSD Hive remains the desktop client and Mother Hive role.
+        </p>
+        <div class="actions">
+          <a class="btn btn-solid" href="/downloads/QSD-edge-agent-1.3.5-windows-x86_64.zip">Windows Edge Control</a>
+          <a class="btn btn-solid" href="/downloads/QSD-edge-agent-1.3.5-linux-x86_64.tar.gz">Linux Edge Control</a>
+          <a class="btn btn-ghost" href="/docs/#/edge-pool">Deployment guide</a>
+        </div>
+      </div>
+      <div class="checksum">
+        Agents use outbound authenticated requests and execute only fixed QSD CPU,
+        CUDA GPU, or RAM jobs. No remote shell.
+      </div>
+    </section>
+
+    <h2 class="section-title">Included in Hive</h2>
+    <div class="grid-3">
+      <article class="card">
+        <strong>Wallet</strong>
+        <h3>CELL keystore</h3>
+        <p>Backup and import with QSD keystore JSON plus passphrase.</p>
+      </article>
+      <article class="card">
+        <strong>Tasks</strong>
+        <h3>Task Studio</h3>
+        <p>Publish signed manifests; catalog updates without reinstalling Hive.</p>
+      </article>
+      <article class="card">
+        <strong>Mining</strong>
+        <h3>NVIDIA access</h3>
+        <p>Protocol mining stays NVIDIA-only for supported GPUs.</p>
+      </article>
+      <article class="card">
+        <strong>Edge</strong>
+        <h3>Mother Hive</h3>
+        <p>Bounded CPU, NVIDIA GPU, and RAM jobs with durable Relay receipts.</p>
+      </article>
+      <article class="card">
+        <strong>Integrations</strong>
+        <h3>Sky Fang</h3>
+        <p>Wallet-link checks for play-to-earn CELL eligibility.</p>
+      </article>
+      <article class="card">
+        <strong>Operators</strong>
+        <h3>Home tools</h3>
+        <p>
+          <a href="/docs/#/home-gateway">Home gateway</a>
+          ·
+          <a href="/docs/#/tray-monitor">Tray monitor</a>
+        </p>
+      </article>
+    </div>
+
+    <h2 class="section-title">Mining paths</h2>
+    <div class="grid-2">
+      <article class="card">
+        <strong>Protocol mining</strong>
+        <h3>QSD Miner task</h3>
+        <p>
+          NVIDIA Turing-or-newer GPU for v2 identity, attestation, and CUDA proof search.
+          Advanced operators can use <code>QSDminer-console</code>.
+        </p>
+        <p style="margin-top:0.85rem"><a href="/docs/#/miner-quickstart">Miner requirements</a></p>
+      </article>
+      <article class="card">
+        <strong>Pooled compute</strong>
+        <h3>Edge participation</h3>
+        <p>
+          Contribute bounded CPU or RAM without a protocol-mining GPU. CUDA capacity
+          is separate from protocol mining.
+        </p>
+        <p style="margin-top:0.85rem"><a href="/docs/#/edge-pool">Edge pool model</a></p>
+      </article>
+    </div>
+  </main>
+
+  <footer>
+    <div class="shell footer-row">
+      <span>QSD Hive is the recommended release for QSD and CELL.</span>
+      <span><a href="/">Home</a> · <a href="/docs/">Docs</a> · <a href="/audit.html">Audit</a> · <a href="https://github.com/quantum-ledger/QSD/blob/main/PRIVACY.md">Privacy</a> · <a href="https://github.com/quantum-ledger/QSD/blob/main/CODE_SIGNING_POLICY.md">Code signing</a></span>
+    </div>
+  </footer>
+</body>
+</html>

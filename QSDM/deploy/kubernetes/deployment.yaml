@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: QSD-node
+  namespace: QSD
+  labels:
+    app: QSD
+    component: node
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: QSD
+      component: node
+  template:
+    metadata:
+      labels:
+        app: QSD
+        component: node
+    spec:
+      containers:
+      - name: QSD
+        image: QSD:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: network
+          containerPort: 4001
+          protocol: TCP
+        - name: api
+          containerPort: 8080
+          protocol: TCP
+        - name: dashboard
+          containerPort: 8081
+          protocol: TCP
+        - name: logviewer
+          containerPort: 9000
+          protocol: TCP
+        env:
+        - name: NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: NETWORK_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: network_port
+        - name: API_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: api_port
+        - name: DASHBOARD_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: dashboard_port
+        - name: LOG_VIEWER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: log_viewer_port
+        - name: STORAGE_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: storage_type
+        - name: SQLITE_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: sqlite_path
+        - name: LOG_FILE
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: log_file
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: log_level
+        - name: ENABLE_TLS
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: enable_tls
+        - name: API_RATE_LIMIT_MAX
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: api_rate_limit_max
+        - name: API_RATE_LIMIT_WINDOW
+          valueFrom:
+            configMapKeyRef:
+              name: QSD-config
+              key: api_rate_limit_window
+        - name: BOOTSTRAP_PEERS
+          value: "QSD-node-0.QSD-service:4001"
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        # Public API routes (no JWT). If ENABLE_TLS=true on the node, set scheme: HTTPS and/or use tcpProbe.
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: api
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: api
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Brought to parity with validator-statefulset.yaml so the
+        # legacy single-image deploy path is not a security
+        # regression. See QSD/deploy/kubernetes/networkpolicy.yaml
+        # for the egress controls and the runtime-* audit-checklist
+        # items in pkg/audit/checklist.go for the requirement
+        # rationale.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65532
+          runAsGroup: 65532
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: QSD-data
+      - name: logs
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+

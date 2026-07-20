@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  QSD-node1:
+    image: QSD:latest
+    container_name: QSD-node1
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # Network port
+      - "8081:8081"  # Dashboard
+    volumes:
+      - QSD-data1:/data
+      - QSD-logs1:/logs
+    environment:
+      - NODE_ID=node1
+      - NETWORK_PORT=8080
+      - DASHBOARD_PORT=8081
+      - STORAGE_TYPE=sqlite
+      - STORAGE_PATH=/data/QSD.db
+      - LOG_LEVEL=info
+      - METRICS_ENABLED=true
+      - CUDA_ENABLED=true
+    networks:
+      - QSD-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  QSD-node2:
+    image: QSD:latest
+    container_name: QSD-node2
+    restart: unless-stopped
+    ports:
+      - "8082:8080"  # Network port
+      - "8083:8081"  # Dashboard
+    volumes:
+      - QSD-data2:/data
+      - QSD-logs2:/logs
+    environment:
+      - NODE_ID=node2
+      - NETWORK_PORT=8080
+      - DASHBOARD_PORT=8081
+      - STORAGE_TYPE=sqlite
+      - STORAGE_PATH=/data/QSD.db
+      - LOG_LEVEL=info
+      - METRICS_ENABLED=true
+      - CUDA_ENABLED=true
+    networks:
+      - QSD-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  QSD-node3:
+    image: QSD:latest
+    container_name: QSD-node3
+    restart: unless-stopped
+    ports:
+      - "8084:8080"  # Network port
+      - "8085:8081"  # Dashboard
+    volumes:
+      - QSD-data3:/data
+      - QSD-logs3:/logs
+    environment:
+      - NODE_ID=node3
+      - NETWORK_PORT=8080
+      - DASHBOARD_PORT=8081
+      - STORAGE_TYPE=sqlite
+      - STORAGE_PATH=/data/QSD.db
+      - LOG_LEVEL=info
+      - METRICS_ENABLED=true
+      - CUDA_ENABLED=true
+    networks:
+      - QSD-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Monitoring stack
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: QSD-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - QSD-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: QSD-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - QSD-network
+
+volumes:
+  QSD-data1:
+    driver: local
+  QSD-data2:
+    driver: local
+  QSD-data3:
+    driver: local
+  QSD-logs1:
+    driver: local
+  QSD-logs2:
+    driver: local
+  QSD-logs3:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  QSD-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
