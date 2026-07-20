@@ -21,16 +21,15 @@ desktop client (CELL wallets, tasks, mining, edge). |
 
 ## Start here
 
-- **Feature summary (current capabilities):** [`QSD/docs/docs/Feature Summary.md`](QSD/docs/docs/Feature%20Summary.md)
-- **Operator wiki (end-to-end):** [`QSD/docs/docs/OPERATOR_GUIDE.md`](QSD/docs/docs/OPERATOR_GUIDE.md) ⭐ start here if you are new
-- **Run a validator (CPU-only):** [`QSD/docs/docs/VALIDATOR_QUICKSTART.md`](QSD/docs/docs/VALIDATOR_QUICKSTART.md)
-- **Run a miner (Hive or console; CUDA solver bundled):** [`QSD/docs/docs/MINER_QUICKSTART.md`](QSD/docs/docs/MINER_QUICKSTART.md)
-- **Home gateway (narrow public mining/status):** [`QSD/docs/docs/HOME_GATEWAY.md`](QSD/docs/docs/HOME_GATEWAY.md)
-- **Edge pool / Mother Hive:** [`QSD/docs/docs/EDGE_POOL.md`](QSD/docs/docs/EDGE_POOL.md)
-- **Run the NGC attestation sidecar:** [`apps/QSD-nvidia-ngc/QUICKSTART.md`](apps/QSD-nvidia-ngc/QUICKSTART.md)
-- **API reference:** [`QSD/docs/docs/API_REFERENCE.md`](QSD/docs/docs/API_REFERENCE.md) and [`openapi.yaml`](QSD/docs/docs/openapi.yaml)
-- **Protocol specs:** [`MINING_PROTOCOL_V2.md`](QSD/docs/docs/MINING_PROTOCOL_V2.md), [`NODE_ROLES.md`](QSD/docs/docs/NODE_ROLES.md), [`CELL_TOKENOMICS.md`](QSD/docs/docs/CELL_TOKENOMICS.md)
-- **Release notes:** [`CHANGELOG.md`](CHANGELOG.md)
+- **Feature summary (current capabilities):** [`QSDM/docs/docs/Feature Summary.md`](QSDM/docs/docs/Feature%20Summary.md)
+- **Operator wiki (end-to-end):** [`QSDM/docs/docs/OPERATOR_GUIDE.md`](QSDM/docs/docs/OPERATOR_GUIDE.md) ⭐ start here if you are new
+- **Run a validator (CPU-only):** [`QSDM/docs/docs/VALIDATOR_QUICKSTART.md`](QSDM/docs/docs/VALIDATOR_QUICKSTART.md)
+- **Run a miner (Hive or console; CUDA solver bundled):** [`QSDM/docs/docs/MINER_QUICKSTART.md`](QSDM/docs/docs/MINER_QUICKSTART.md)
+- **Home gateway (narrow public mining/status):** [`QSDM/docs/docs/HOME_GATEWAY.md`](QSDM/docs/docs/HOME_GATEWAY.md)
+- **Edge pool / Mother Hive:** [`QSDM/docs/docs/EDGE_POOL.md`](QSDM/docs/docs/EDGE_POOL.md)
+- **Run the NGC attestation sidecar:** [`apps/QSDM-nvidia-ngc/QUICKSTART.md`](apps/QSDM-nvidia-ngc/QUICKSTART.md)
+- **API reference:** [`QSDM/docs/docs/API_REFERENCE.md`](QSDM/docs/docs/API_REFERENCE.md) and [`openapi.yaml`](QSDM/docs/docs/openapi.yaml)
+- **Protocol specs:** [`MINING_PROTOCOL_V2.md`](QSDM/docs/docs/MINING_PROTOCOL_V2.md), [`NODE_ROLES.md`](QSDM/docs/docs/NODE_ROLES.md), [`CELL_TOKENOMICS.md`](QSDM/docs/docs/CELL_TOKENOMICS.md)
 - **Code signing policy:** [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md)
 - **Privacy policy:** [`PRIVACY.md`](PRIVACY.md)
 - **Security reporting:** [`SECURITY.md`](SECURITY.md)
